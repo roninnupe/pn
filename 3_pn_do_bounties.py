@@ -1,0 +1,361 @@
+import argparse
+import random
+import time
+import pandas as pd
+import json
+import requests
+from web3 import Web3, HTTPProvider
+from eth_utils import to_checksum_address
+
+# GLOBAL VARIABLES
+
+# The Pirate Nation Graph for queries
+prod_graph_url = "https://subgraph.satsuma-prod.com/208eb2825ebd/proofofplay/pn-nova/api"
+
+# The Main Nova RPC
+nova_rpc_main = "https://nova.arbitrum.io/rpc"
+
+# The Bounty Contract Address
+contract_address = '0xE6FDcF808cD795446b3520Be6487917E9B82339a'
+
+# The query used to get all bounties from the PN Grpah
+bounty_query = """
+    query GetComponentEntities{
+      components(where: { id: "0x3ceb3cd6a633684f7095ec8b1842842250978ee3f4f137603421db15b59d137f"}) {
+        id
+        entities(first: 1000){
+          id
+          fields {
+            name
+            value
+            worldEntity {
+              id
+            }
+          }
+        }
+      }
+    }
+    """
+
+#ABI to read active bounties
+active_bounty_ABI = [
+        {
+            "inputs": [
+                {
+                    "internalType": "address",
+                    "name": "account",
+                    "type": "address"
+                }
+            ],
+            "name": "activeBountyIdsForAccount",
+            "outputs": [
+                {
+                    "internalType": "uint256[]",
+                    "name": "",
+                    "type": "uint256[]"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        }
+    ]
+
+#ABI to write to the bounty controct
+write_bounty_ABI = [
+        {
+            "inputs": [
+                {
+                    "internalType": "uint256",
+                    "name": "activeBountyId",
+                    "type": "uint256"
+                }
+            ],
+            "name": "endBounty",
+            "outputs": [],
+            "stateMutability": "nonpayable",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "uint256",
+                    "name": "bountyId",
+                    "type": "uint256"
+                },
+                {
+                    "internalType": "uint256[]",
+                    "name": "entities",
+                    "type": "uint256[]"
+                }
+            ],
+            "name": "startBounty",
+            "outputs": [],
+            "stateMutability": "nonpayable",
+            "type": "function"
+        }
+    ]
+
+# A query to get all pirates that belong to a given address
+def make_pirate_query(address):
+    return f"""
+    {{
+      accounts(where: {{address: "{address.lower()}"}}){{
+        nfts(where:{{nftType: "pirate"}}){{
+            name
+            id
+        }}
+      }}
+    }}
+    """
+
+# Get Data from the following enpoint using the query and return json
+def get_json_data(url, query):
+    response = requests.post(url, json={'query': query})
+    return response.json()
+
+
+# return the bounty hex from the bounty data, using the group_id specified, and fits the proper number of pirates
+def get_bounty_hex(data, group_id, num_of_pirates):
+
+    # Initialize a list to store matching entities
+    matching_entities = []
+
+    # Iterate through components
+    for component in data['data']['components']:
+        for entity in component['entities']:
+            entity_group_id = None
+            lower_bound = None
+            upper_bound = None
+            for field in entity['fields']:
+                if field['name'] == 'group_id':
+                    entity_group_id = field['value']
+                elif field['name'] == 'lower_bound':
+                    lower_bound = int(field['value'])
+                elif field['name'] == 'upper_bound':
+                    upper_bound = int(field['value'])
+
+            if entity_group_id == group_id and lower_bound is not None and upper_bound is not None:
+                if lower_bound <= num_of_pirates <= upper_bound:
+                    matching_entities.append(entity)
+
+    if matching_entities:
+        first_entity_id = matching_entities[0]['id']
+        hex_value = first_entity_id.split('-')[1]
+        return hex_value
+    else:
+        return None
+
+def parse_arguments():
+    parser = argparse.ArgumentParser(description="Example Argument Parser")
+
+    parser.add_argument("--skip_end_bounties", dest="end", action='store_false', default=True,
+                        help="Flag to skip the endBounties")
+
+    parser.add_argument("--skip_start_bounties", dest="start", action="store_false", default=True,
+                        help="Flag to skip startBounty")
+
+    args = parser.parse_args()
+    return args
+
+
+class TokenIdExceedsMaxValue(Exception):
+    def __init__(self, token_id):
+        self.token_id = token_id
+        super().__init__(f"Token ID {token_id} exceeds the maximum value")
+
+
+def graph_id_to_entity(id_str: str) -> int:
+    address, token_id = id_str.split('-')
+    return token_to_entity(address, int(token_id))
+
+
+def token_to_entity(address: str, token_id: int) -> int:
+    # Convert Ethereum address from hex string to integer
+    address_int = int(address, 16)
+
+    # Left shift the token_id by 160 bits to make space for the address
+    result = token_id << 160
+
+    # Combine the shifted token_id and address_int
+    packed_result = result | address_int
+
+    return packed_result
+
+
+def entity_to_token(packed_result: int) -> (str, int):
+    # Mask to extract the least significant 160 bits (Ethereum address)
+    mask = (1 << 160) - 1
+
+    # Extract the address integer using the mask
+    address_int = packed_result & mask
+
+    # Convert the address integer to a hex string
+    address_str = hex(address_int).rstrip("L").lstrip("0x")  # Remove trailing 'L' (if exists) and leading '0x'
+
+    # Extract the token_id by right-shifting the packed_result by 160 bits
+    token_id = packed_result >> 160
+
+    print(f"0x{address_str} - {token_id}")
+
+    return ("0x" + address_str, token_id)  # Prefix the Ethereum address with '0x'
+
+
+
+def get_pirate_entities(address):
+
+    query = make_pirate_query(address)
+    json_data = get_json_data(prod_graph_url, query)
+
+    pirate_entities = []
+
+    for account in json_data['data']['accounts']:
+        for nft in account['nfts']:
+            id_value = nft['id']
+            name_value = nft['name']
+            print(f"{name_value} present")
+            pirate_entities.append(graph_id_to_entity(id_value))
+
+    return pirate_entities
+
+
+def main():
+    # pull arguments out for start and end
+    args = parse_arguments()
+    print("endBounty:", args.end)
+    print("startBounty:", args.start)
+    print()
+
+    # Load data from addresses.csv
+    df = pd.read_csv('addresses.csv')
+
+    # Load data from bounty_mappings.csv
+    bounty_mappings_df = pd.read_csv('bounty_group_mappings.csv')
+
+    # Display available bounties to the user
+    print("Available bounties:")
+    for index, row in bounty_mappings_df.iterrows():
+        print(f"{index + 1}. {row['bounty_name']}")
+
+    # Get user input for the bounty they are interested in
+    selected_index = int(input("Please enter the number corresponding to the bounty you're interested in: ")) - 1
+
+    # Validate user input
+    if selected_index < 0 or selected_index >= len(bounty_mappings_df):
+        print("Invalid selection. Exiting.")
+        exit()
+
+    # Find the corresponding hex value for the selected bounty_name
+    selected_bounty_name = bounty_mappings_df.iloc[selected_index]['bounty_name']
+    group_id = bounty_mappings_df.iloc[selected_index]['group_id']
+
+    # Initialize web3 with the PN
+    web3 = Web3(HTTPProvider(nova_rpc_main))
+
+    # Define contract address and contract
+    contract_to_read = web3.eth.contract(address=contract_address, abi=active_bounty_ABI)
+    contract_to_write = web3.eth.contract(address=contract_address, abi=write_bounty_ABI)
+
+    ended_bounties = 0
+    started_bounties = 0
+
+    # Load the JSON data from the file
+    bounty_data = get_json_data(prod_graph_url, bounty_query)
+
+    print("---------------------------------------------------------------------------")
+    for index, row in df.iterrows():
+        wallet = row['wallet']
+        address = row['address']
+        private_key = row['key']
+
+        print(f"Executing Bounties on {wallet} - {address}")
+
+        # grab all the pirates in the wallet as their entity format
+        pirates = get_pirate_entities(address)
+
+        #get the appropriate bounty id hex
+        hex_value = get_bounty_hex(bounty_data, group_id, len(pirates))
+
+        # Convert hexadecimal string to base 10 integer
+        # FYI, This is the bounty ID for the user-selected bounty_name
+        bounty_id = int(hex_value, 16)
+
+        # read the activeBounties for the address
+        function_name = 'activeBountyIdsForAccount'
+        function_args = [address]
+        result = contract_to_read.functions[function_name](*function_args).call()
+
+        print("Active Bounty IDs: ", result)
+
+        if args.end:
+            for active_bounty_id in result:
+                ended_bounties += end_bounty(web3, contract_to_write, address, private_key, active_bounty_id)
+
+        if args.start:
+            started_bounties += start_bounty(web3, contract_to_write, address, private_key, bounty_id, pirates)
+
+        print("---------------------------------------------------------------------------")
+
+    print(f"claimed {ended_bounties} bounties and started {started_bounties} bounties")
+
+
+
+def start_bounty(web3, contract_to_write, address, private_key, bounty_id, pirates):
+    print(f"Attempting to send {pirates}\n  on bounty_id: {bounty_id}")
+    txn_dict = {
+        'from': address,
+        'to': contract_to_write.address,
+        'value': 0,
+        'nonce': web3.eth.get_transaction_count(address),
+        'gasPrice': web3.eth.gas_price,
+        'data': contract_to_write.encodeABI(fn_name='startBounty', args=[bounty_id, pirates])
+    }
+
+    try:
+        send_web3_transaction(web3, private_key, txn_dict)
+        print(f'Done startBounty from: {address}')
+        return 1
+    except Exception as e:
+        print("  **Error sending startBounty transaction:", e)
+        return 0
+
+
+def end_bounty(web3, contract_to_write, address, private_key, bounty_id):
+    print(f"Attempting to end active_bounty_id: {bounty_id}")
+    txn_dict = {
+        'from': address,
+        'to': contract_to_write.address,
+        'value': 0,
+        'nonce': web3.eth.get_transaction_count(address),
+        'gasPrice': web3.eth.gas_price,
+        'data': contract_to_write.encodeABI(fn_name='endBounty', args=[bounty_id])
+    }
+
+    try:
+        # Estimate the gas for this specific transaction
+        send_web3_transaction(web3, private_key, txn_dict)
+
+        print(f'Done endBounty from: {address}')
+        return 1
+    except Exception as e:
+        print("  **Error sending endBounty transaction:", e)
+        return 0
+
+
+def send_web3_transaction(web3, private_key, txn_dict):
+    # Estimate the gas for this specific transaction
+    txn_dict['gas'] = web3.eth.estimate_gas(txn_dict)
+
+    print(f"Gas: {txn_dict['gas']}")
+
+    signed_txn = web3.eth.account.sign_transaction(txn_dict, private_key=private_key)
+
+    # Send the transaction
+    txn_hash = web3.eth.send_raw_transaction(signed_txn.rawTransaction)
+    print('Transaction hash:', txn_hash.hex())  # This will give you the transaction hash
+
+    # Wait for the transaction to be mined, and get the transaction receipt
+    txn_receipt = web3.eth.wait_for_transaction_receipt(txn_hash)
+
+
+if __name__ == "__main__":
+    main()
