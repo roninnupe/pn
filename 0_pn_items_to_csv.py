@@ -76,10 +76,10 @@ def to_csv(json_string):
     df.index.name = "wallet"
 
     # Convert DataFrame to CSV
-    df.to_csv('game_items.csv')
+    df.to_csv('/Users/byoung/Documents/scripts/pn data/game_items.csv')
 
 def main():
-    file_path = 'addresses.txt'  # replace with your file path
+    file_path = '/Users/byoung/Documents/scripts/pn data/addresses.csv' # replace with your file path
     url = "https://subgraph.satsuma-prod.com/208eb2825ebd/proofofplay/pn-nova/api"
     addresses = read_addresses(file_path)
     data_list = []
