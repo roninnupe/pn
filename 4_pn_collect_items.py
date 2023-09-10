@@ -134,7 +134,7 @@ def main():
     contract_address = '0x3B4cdb27641bc76214a0cB6cae3560a468D9aD4A'
     contract = web3.eth.contract(address=contract_address, abi=abi)
 
-    # Set the recipient address(es)    
+    # Set the recipient address(es) LFG    
     df_recipients = pd.read_csv(selected_recipients)
     recipients = df_recipients['address'].tolist()
 
