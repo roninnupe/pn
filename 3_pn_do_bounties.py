@@ -226,10 +226,10 @@ def main():
     print()
 
     # Load data from addresses.csv
-    df = pd.read_csv('addresses.csv')
+    df = pd.read_csv('../pn data/addresses.csv')
 
     # Load data from bounty_mappings.csv
-    bounty_mappings_df = pd.read_csv('bounty_group_mappings.csv')
+    bounty_mappings_df = pd.read_csv('../pn data/bounty_group_mappings.csv')
 
     # Display available bounties to the user
     print("Available bounties:")

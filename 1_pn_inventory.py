@@ -101,7 +101,7 @@ def excel_sheet(json_string, ordered_addresses):
     # Load up the inventory mapping, which is a file that has data_name and friendly display name mappings.
     # this is uded to help set the display order of columns, and their friendly name version. 
     # all additional items not listed will appear as their traditional name loaded from the jsaon and after the specified items
-    df_data_mappings = pd.read_csv('InventoryMapping.csv') 
+    df_data_mappings = pd.read_csv('../pn data/InventoryMapping.csv') 
     data_name_to_display_name = df_data_mappings.set_index('data_name')['display_name'].to_dict()    
 
     # Define initial columns in the order we want
@@ -227,7 +227,7 @@ def excel_sheet(json_string, ordered_addresses):
 
     # Convert DataFrame to Excel
     # Versions of Pandas >= 1.3.0:
-    file_name = 'pn_inventory.xlsx'
+    file_name = '../pn data/pn_inventory.xlsx'
     xlWriter = pd.ExcelWriter(file_name,engine='xlsxwriter',engine_kwargs={'options': {'strings_to_numbers': True}})
 
     # Export to Excel
@@ -261,7 +261,7 @@ def excel_sheet(json_string, ordered_addresses):
     xlWriter._save()
 
 def main():
-    file_path = 'addresses.txt'  # replace with your file path
+    file_path = '../pn data/addresses.txt'  # replace with your file path
     url = "https://subgraph.satsuma-prod.com/208eb2825ebd/proofofplay/pn-nova/api"
     addresses = read_addresses(file_path)
     formatted_output = ', '.join(f'"{address}"' for address in addresses)

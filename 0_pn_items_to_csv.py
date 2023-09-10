@@ -1,6 +1,7 @@
 import requests
 import json
 import pandas as pd
+from concurrent.futures import ThreadPoolExecutor
 
 def read_addresses(file_path):
     with open(file_path, 'r') as f:
@@ -38,57 +39,64 @@ def to_csv(json_string):
     # Parse JSON data
     data = json.loads(json_string)
 
-    # Initialize empty DataFrame
-    df = pd.DataFrame()
+    # Initialize a list to store data as dictionaries
+    data_list = []
 
     # Iterate over accounts
     for account in data['data']['accounts']:
         address = account['address']
+        account_data = {'wallet': address}
 
         # Set PGLD value
         pgld = '0'
         if 'currencies' in account and len(account['currencies']) > 0:
             pgld = str(account['currencies'][0]['amount'])
-
-        # If PGLD is not a column in the DataFrame, add it
-        if 'PGLD' not in df.columns:
-            df['PGLD'] = '0'
-
-        # Add the PGLD value to the appropriate cell in the DataFrame
-        df.loc[address, 'PGLD'] = pgld
+        account_data['PGLD'] = pgld
 
         # Iterate over game items
         for game_item in account['gameItems']:
             name = game_item['gameItem']['name']
             amount = int(game_item['amount'])
+            account_data[name] = amount
 
-            # If the item name is not a column in the DataFrame, add it
-            if name not in df.columns:
-                df[name] = 0
+        data_list.append(account_data)
 
-            # Add the item amount to the appropriate cell in the DataFrame
-            df.loc[address, name] = amount
+    # Convert the list of dictionaries to a DataFrame
+    df = pd.DataFrame(data_list)
 
     # Replace NaN values with zeros
     df.fillna(0, inplace=True)
 
-    # Rename the index to "wallet"
-    df.index.name = "wallet"
+    # Convert the DataFrame to CSV
+    df.to_csv('../pn data/game_items.csv', index=False)
 
-    # Convert DataFrame to CSV
-    df.to_csv('/Users/byoung/Documents/scripts/pn data/game_items.csv')
+def fetch_data(address, url):
+    query = make_query(address)
+    response = requests.post(url, json={'query': query})
+    return response.json()
 
 def main():
-    file_path = '/Users/byoung/Documents/scripts/pn data/addresses.csv' # replace with your file path
+    file_path = '../pn data/addresses.txt'  # Replace with your file path
     url = "https://subgraph.satsuma-prod.com/208eb2825ebd/proofofplay/pn-nova/api"
     addresses = read_addresses(file_path)
-    data_list = []
-    for address in addresses:
-        query = make_query(address)
-        data = get_data(url, query)
-        data_list.append(data)
-    merged_data = merge_data(data_list)
-    to_csv(json.dumps(merged_data, indent=4))
+
+    # Use ThreadPoolExecutor to parallelize requests
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        data_list = list(executor.map(lambda addr: fetch_data(addr, url), addresses))
+
+    # Handle failed requests if needed
+    failed_requests = [i for i, data in enumerate(data_list) if 'errors' in data]
+    if failed_requests:
+        print(f"Failed requests for addresses: {', '.join(addresses[i] for i in failed_requests)}")
+
+    # Remove failed requests from the data_list
+    data_list = [data for i, data in enumerate(data_list) if i not in failed_requests]
+
+    if data_list:
+        merged_data = merge_data(data_list)
+        to_csv(json.dumps(merged_data, indent=4))
+    else:
+        print("No valid data to process.")
 
 if __name__ == "__main__":
     main()

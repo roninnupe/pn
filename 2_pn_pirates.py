@@ -8,12 +8,12 @@ import pytz
 start_time = time.time() 
 
 # Step 1: Read data from a CSV file and create a dictionary mapping token IDs to rarity ranks.
-df = pd.read_csv('rarity_scores_final.csv')
+df = pd.read_csv('../pn data/rarity_scores_final.csv')
 df.tokenId = df.tokenId.astype(str)  # Ensure all token IDs are strings.
 tokenId_rarity_dict = dict(zip(df.tokenId, df.RarityRank))
 
 # Step 2: Read addresses from a text file and create a dictionary mapping addresses to IDs.
-with open('addresses.txt', 'r') as file:
+with open('../pn data/addresses.txt', 'r') as file:
     addresses = file.read().splitlines()
 addresses = [address.lower().strip() for address in addresses]
 address_id_dict = {address: i+1 for i, address in enumerate(addresses)}
@@ -169,7 +169,7 @@ column_order = [
 ]
 
 # Load the Excel file
-file_name = 'pn_pirates.xlsx'
+file_name = '../pn data/pn_pirates.xlsx'
 xlWriter = pd.ExcelWriter(file_name,
                         engine='xlsxwriter',
                         engine_kwargs={'options': {'strings_to_numbers': True}})

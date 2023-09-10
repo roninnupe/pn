@@ -89,13 +89,13 @@ def batch_transfer(web3, contract, recipient, operator, wallet_address, token_id
 def main():
     args = parse_arguments()
 
-    df_config = pd.read_csv('pn_collect_item_config.csv')
+    df_config = pd.read_csv('../pn data/pn_collect_item_config.csv')
     print("Available operators:")
     for index, row in df_config.iterrows():
         print(f"{index + 1}. {row['name']} - {row['operator_address']}")   
     
     # Get user input for the bounty they are interested in
-    selected_index = int(input("Please enter the number corresponding to the bounty you're interested in: ")) - 1
+    selected_index = int(input("Please enter the operator you're interested in: ")) - 1
 
     # Validate user input
     if selected_index < 0 or selected_index >= len(df_config):
@@ -104,18 +104,23 @@ def main():
 
      # Find the corresponding hex value for the selected bounty_name
     selected_operator = df_config.iloc[selected_index]['operator_address']
-    selected_recipients = df_config.iloc[selected_index]['recipient_file']     
-    selected_senders = df_config.iloc[selected_index]['sender_file']            
+    selected_recipients =f"../pn data/{df_config.iloc[selected_index]['recipient_file']}"    
+    selected_senders = f"../pn data/{df_config.iloc[selected_index]['sender_file']}"       
+
+    print("Loading data:")
+    print(f"Operator: {selected_operator}")
+    print(f"Recipients file: {selected_recipients}")
+    print(f"Senders file: {selected_senders}")  
 
     # Load data from JSON
-    with open('data_tokenId_items.json', 'r') as f:
+    with open('../pn data/data_tokenId_items.json', 'r') as f:
         data = json.load(f)
         gameItems = data["data"]["gameItems"]
         # Convert list of dictionaries to a dictionary
         item_to_tokenId = {item["name"].lower(): int(item["tokenId"]) for item in gameItems}
 
     # Load data from CSV
-    df = pd.read_csv('game_items.csv')
+    df = pd.read_csv('../pn data/game_items.csv')
     # Strip whitespaces from column names
     df.columns = df.columns.str.strip()
 
