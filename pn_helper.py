@@ -113,7 +113,11 @@ contract_BountySystem = Web3Singleton.get_BountySystem()
 
 # returns a full formed file path - useful to know where to find files
 def data_path(filename) :
-    return f"{personal_settings.relative_pn_data_path}{filename}"
+    try:
+        return f"{personal_settings.relative_pn_data_path}{filename}"
+    except Exception as e:
+        print(f"Error in data_path: {str(e)}")
+        return filename
 
 # gets the JSON data from a query to the pirate nation graph
 def get_data(query):
