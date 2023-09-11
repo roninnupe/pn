@@ -7,22 +7,9 @@ import pytz
 
 start_time = time.time() 
 
-# Step 1: Read data from a CSV file and create a dictionary mapping token IDs to rarity ranks.
-df = pd.read_csv('../pn data/rarity_scores_final.csv')
-df.tokenId = df.tokenId.astype(str)  # Ensure all token IDs are strings.
-tokenId_rarity_dict = dict(zip(df.tokenId, df.RarityRank))
+#-------- FUNCTIONS -----------------------------------------
 
-# Step 2: Read addresses from a text file and create a dictionary mapping addresses to IDs.
-with open('../pn data/addresses.txt', 'r') as file:
-    addresses = file.read().splitlines()
-addresses = [address.lower().strip() for address in addresses]
-address_id_dict = {address: i+1 for i, address in enumerate(addresses)}
-formatted_output = ', '.join(f'"{address}"' for address in addresses)
-
-# XP required for each level
-total_xp_to_level_up = [0, 0, 25, 50, 100, 200, 400, 700, 1100, 1600, 2100, 2600, 3100, 3600, 4100, 5100, 6100, 7100, 8100, 9100, 10100, 11600, 13100, 14600, 16100, 18100, 20100, 22100, 24100, 26100, 28100, 0]
-
-
+# expertise mapping of number to actual readable name
 expertise_id_mapping = {
     "1": "Attack",
     "2": "Evasion",
@@ -31,7 +18,87 @@ expertise_id_mapping = {
     "5": "Health"
 }
 
-# GraphQL Query
+# FUNCTION: Maps expertise IDs to their respective names
+def map_expertise(nft):
+    for trait in nft['traits']:
+        if trait['metadata']['name'] == 'expertise_id':
+            trait['metadata']['name'] = 'Expertise'
+            trait['value'] = expertise_id_mapping[trait['value']]
+
+# Read data from a CSV file and create a dictionary mapping token IDs to rarity ranks.
+df = pd.read_csv('../pn data/rarity_scores_final.csv')
+
+df.tokenId = df.tokenId.astype(str)  # Ensure all token IDs are strings.
+tokenId_rarity_dict = dict(zip(df.tokenId, df.RarityRank))
+
+# FUNCTION: Add Rarity Rank to the traits
+def add_rarity_rank(nft):
+    tokenId_str = str(nft['tokenId'])  # Convert tokenId to a string before accessing the dictionary.
+    rarity_rank = tokenId_rarity_dict.get(tokenId_str, 'No data')
+    nft['traits'].append({'metadata': {'name': 'Rarity Rank'}, 'value': rarity_rank})
+
+# FUNCTION: calculate the next chest claim date and add related traits
+def add_next_claim_date(nft):
+    max_milestone_index = max([milestone['milestoneIndex'] for milestone in nft['claimedMilestones']], default=-1)
+    next_milestone_index = max_milestone_index + 1
+    if next_milestone_index == 0:
+        next_claim_date = int(nft['lastTransfer']) + 7 * 24 * 60 * 60
+    elif next_milestone_index in [1, 2]:
+        next_claim_date = int(nft['lastTransfer']) + next_milestone_index * 30 * 24 * 60 * 60
+    elif next_milestone_index in [3, 4, 5]:
+        next_claim_date = int(nft['lastTransfer']) + 3 * 30 * 24 * 60 * 60
+    elif next_milestone_index == 6:
+        next_claim_date = int(nft['lastTransfer']) + 135 * 24 * 60 * 60
+    else:
+        next_claim_date = "All claimed"
+    if next_claim_date != "All claimed":
+        next_claim_date = datetime.fromtimestamp(next_claim_date, pytz.timezone('US/Eastern')).strftime('%Y-%m-%d %H:%M:%S')
+    nft['traits'].append({'metadata': {'name': 'Next Claim Date'}, 'value': next_claim_date})
+    nft['traits'].append({'metadata': {'name': 'ClaimedChests'}, 'value': max_milestone_index+1})    
+
+# Read the level_chart into a data frame once for use 
+df_level_chart = pd.read_csv("../pn data/LevelChart.csv")
+
+# FUNCTION: Calculates the level based on XP and returns the amount of xp to the next level as well
+def get_potential_level(xp_value):
+    try:
+        level = None
+        xp_to_next_level = None
+
+        # Iterate through the level_chart and find the level
+        for index, row in df_level_chart.iterrows():
+            if xp_value >= row['XP Needed']:
+                level = row['Level']
+            else:
+                xp_to_next_level = row['XP Needed'] - xp_value
+                break
+
+        return level, xp_to_next_level
+
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+# Calculate the upgradable level and add related traits
+def calculate_upgradable_level(nft):
+    xp = next((int(trait['value']) for trait in nft['traits'] if trait['metadata']['name'] == 'xp'), 0)
+    current_level = next((int(trait['value']) for trait in nft['traits'] if trait['metadata']['name'] == 'level'), 0)
+    potential_level, xp_needed = get_potential_level(xp)
+    
+    if potential_level > current_level :
+        nft['traits'].append({'metadata': {'name': 'potential'}, 'value': potential_level}) 
+    else:
+        nft['traits'].append({'metadata': {'name': 'to next'}, 'value': xp_needed})
+
+#---------------------------------------------------------
+
+# Step 1: Read addresses from a text file and create a dictionary mapping addresses to IDs.
+with open('../pn data/addresses.txt', 'r') as file:
+    addresses = file.read().splitlines()
+addresses = [address.lower().strip() for address in addresses]
+address_id_dict = {address: i+1 for i, address in enumerate(addresses)}
+formatted_output = ', '.join(f'"{address}"' for address in addresses)
+
+# GraphQL Query to get all the pirate data based off of all the addresses in the text file
 query = f"""
 {{
     accounts(where: {{address_in: [{formatted_output}]}} ) {{
@@ -53,76 +120,13 @@ query = f"""
 }}
 """
 
+# Step 2: Fetch the Data using the query from the PN Graph API 
 data = requests.post("https://subgraph.satsuma-prod.com/208eb2825ebd/proofofplay/pn-nova/api", json={'query': query}).json()
 
-# Read the level_chart into a data frame once
-df_level_chart = pd.read_csv("../pn data/LevelChart.csv")
-
-# Maps expertise IDs to their respective names
-def map_expertise(nft, expertise_id_mapping):
-    for trait in nft['traits']:
-        if trait['metadata']['name'] == 'expertise_id':
-            trait['metadata']['name'] = 'Expertise'
-            trait['value'] = expertise_id_mapping[trait['value']]
-
-# Add Rarity Rank to the traits
-def add_rarity_rank(tokenId_rarity_dict, nft):
-    tokenId_str = str(nft['tokenId'])  # Convert tokenId to a string before accessing the dictionary.
-    rarity_rank = tokenId_rarity_dict.get(tokenId_str, 'No data')
-    nft['traits'].append({'metadata': {'name': 'Rarity Rank'}, 'value': rarity_rank})
-
-# Calculate the next claim date and add related traits
-def add_next_claim_date(nft):
-    max_milestone_index = max([milestone['milestoneIndex'] for milestone in nft['claimedMilestones']], default=-1)
-    next_milestone_index = max_milestone_index + 1
-    if next_milestone_index == 0:
-        next_claim_date = int(nft['lastTransfer']) + 7 * 24 * 60 * 60
-    elif next_milestone_index in [1, 2]:
-        next_claim_date = int(nft['lastTransfer']) + next_milestone_index * 30 * 24 * 60 * 60
-    elif next_milestone_index in [3, 4, 5]:
-        next_claim_date = int(nft['lastTransfer']) + 3 * 30 * 24 * 60 * 60
-    elif next_milestone_index == 6:
-        next_claim_date = int(nft['lastTransfer']) + 135 * 24 * 60 * 60
-    else:
-        next_claim_date = "All claimed"
-    if next_claim_date != "All claimed":
-        next_claim_date = datetime.fromtimestamp(next_claim_date, pytz.timezone('US/Eastern')).strftime('%Y-%m-%d %H:%M:%S')
-    nft['traits'].append({'metadata': {'name': 'Next Claim Date'}, 'value': next_claim_date})
-    nft['traits'].append({'metadata': {'name': 'ClaimedChests'}, 'value': max_milestone_index+1})    
-
-# Calculates the level based on XP and returns the amount of xp to the next level as well
-def get_potential_level(xp_value):
-    try:
-        level = None
-        xp_to_next_level = None
-
-        # Iterate through the level_chart and find the level
-        for index, row in df_level_chart.iterrows():
-            if xp_value >= row['XP Needed']:
-                level = row['Level']
-            else:
-                xp_to_next_level = row['XP Needed'] - xp_value
-                break
-
-        return level, xp_to_next_level
-
-    except Exception as e:
-        return f"Error: {str(e)}"
-
-
-# Calculate the upgradable level and add related traits
-def calculate_upgradable_level(total_xp_to_level_up, nft):
-    xp = next((int(trait['value']) for trait in nft['traits'] if trait['metadata']['name'] == 'xp'), 0)
-    current_level = next((int(trait['value']) for trait in nft['traits'] if trait['metadata']['name'] == 'level'), 0)
-    potential_level, xp_needed = get_potential_level(xp)
-    
-    if potential_level > current_level :
-        nft['traits'].append({'metadata': {'name': 'potential'}, 'value': potential_level}) 
-    else:
-        nft['traits'].append({'metadata': {'name': 'to next'}, 'value': xp_needed})
-
+# Prepare data to export 
 data_to_export = []
 
+# Step 3: if data returned iterate over each account, and annote the proper data to be exported
 if 'data' in data and 'accounts' in data['data']:
     accounts = data['data']['accounts']
 
@@ -135,30 +139,40 @@ if 'data' in data and 'accounts' in data['data']:
         if nfts:
             for nft in nfts:
                 nft['address'] = address
-                map_expertise(nft, expertise_id_mapping)
-                add_rarity_rank(tokenId_rarity_dict, nft)
-                add_next_claim_date(nft)
-                calculate_upgradable_level(total_xp_to_level_up, nft)
 
+                # map the named expertise on to the Pirate NFT data
+                map_expertise(nft)
+
+                # add the rarity rank on to the Pirate NFT data
+                add_rarity_rank(nft)
+
+                # add data around chest claims to the Pirate NFT data
+                add_next_claim_date(nft)
+
+                # add data about what it takes to get to the next level, and if the NFT can already be leveled up to the next level
+                calculate_upgradable_level(nft)
+
+                # create a row with data, and then iterate over additional traits to finalize the final data row
                 row = {'address': nft['address'], 'tokenId': nft['tokenId'], 'lastTransfer': nft['lastTransfer']}
                 for trait in nft['traits']:
                     row[trait['metadata']['name']] = trait['value']
+
+                # append the row to the data
                 data_to_export.append(row)
         else:
             print(f"No NFTs found for account: {address}")
 else:
     print("Invalid or empty response.")
 
-
-# Add WalletID to each row
+# Step 4: Add # identifier to each row
 for row in data_to_export:
     row["#"] = address_id_dict[row["address"]]
 
-# Sort data_to_export by 'WalletID'
+# Step 5: Sort data_to_export by this number since it comes out of the graph out of order
 data_to_export_sorted = sorted(data_to_export, key=lambda x: x['#'])
 
 
-# Define the desired column order
+# Step 6: Define the desired column order, note some have been commented out because I don't want to display it
 column_order = [
     "#",
     "address",
@@ -187,6 +201,8 @@ column_order = [
     "Eye Covering",
 ]
 
+# Step 7: Prepare and Format the Excel File
+
 # Load the Excel file
 file_name = '../pn data/pn_pirates.xlsx'
 xlWriter = pd.ExcelWriter(file_name,
@@ -198,7 +214,14 @@ df_to_export = pd.DataFrame(data_to_export_sorted)
 df_to_export = df_to_export.reindex(columns=column_order)
 df_to_export = df_to_export.rename(columns={'xp': ' xp ', 'Elemental Affinity': 'Affinity', 'Dice Roll 1': 'D1 ', 'Dice Roll 2': 'D2 '})
 
+# Cast certain columns to numeric (assuming it contains valid numeric values)
 df_to_export['level'] = pd.to_numeric(df_to_export['level'], errors='coerce')
+df_to_export['tokenId'] = pd.to_numeric(df_to_export['tokenId'], errors='coerce')
+df_to_export['#'] = pd.to_numeric(df_to_export['#'], errors='coerce')
+
+# Sort the values into wallet order by #, and tokenId order within those wallets
+df_to_export.sort_values(by='tokenId', ascending=True, inplace=True)
+df_to_export.sort_values(by='#', ascending=True, inplace=True)
 
 # Calculate the average of the "level" column
 average_level = df_to_export['level'].mean()
