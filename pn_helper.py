@@ -1,4 +1,5 @@
 # pn_helper.py
+# https://docs.piratenation.game/important/contracts
 
 import requests
 import pandas as pd
@@ -11,9 +12,9 @@ URL_ARB_NOVA_RPC = "https://nova.arbitrum.io/rpc"
 URL_ARB_NOVA_RPC_ALT = "https://arb1.arbitrum.io/rpc"
 URL_PIRATE_NATION_GRAPH_API = "https://subgraph.satsuma-prod.com/208eb2825ebd/proofofplay/pn-nova/api"
 
-_contract_TransparentUpgradeableProxy_addr = "0x26DcA20a55AB5D38B2F39E6798CDBee87A5c983D"
+_contract_EnergySystem = "0x26DcA20a55AB5D38B2F39E6798CDBee87A5c983D"
 # The ABI for TransparentUpgradeableProxy - might need to expand it to include other functions over time
-_ABI_TransparentUpgradeableProxy = [
+_ABI_EnergySystem = [
         {
             "inputs": [
                 {
@@ -71,7 +72,7 @@ _ABI_PGLD = [
 class Web3Singleton:
     _web3_Nova = None
     _web3_NovaAlt = None
-    _TransparentUpgradeableProxy = None  
+    _EnergySystem = None  
     _GameItems = None  
     _PGLDToken = None
 
@@ -88,11 +89,11 @@ class Web3Singleton:
         return cls._web3_NovaAlt
 
     @classmethod
-    def get_TransparentUpgradeableProxy(cls):
-        if cls._TransparentUpgradeableProxy is None:
+    def get_EnergySystem(cls):
+        if cls._EnergySystem is None:
             web3_Nova = cls.get_web3_Nova()
-            cls._TransparentUpgradeableProxy = web3_Nova.eth.contract(address=_contract_TransparentUpgradeableProxy_addr, abi=_ABI_TransparentUpgradeableProxy)
-        return cls._TransparentUpgradeableProxy
+            cls._EnergySystem = web3_Nova.eth.contract(address=_contract_EnergySystem, abi=_ABI_EnergySystem)
+        return cls._EnergySystem
     
     @classmethod
     def get_GameItems(cls):
@@ -110,7 +111,7 @@ class Web3Singleton:
 
 web3_Nova = Web3Singleton.get_web3_Nova()
 web3_NovaAlt = Web3Singleton.get_web3_NovaAlt()
-contract_transparentUpgradeableProxy = Web3Singleton.get_TransparentUpgradeableProxy()
+contract_EnergySystem = Web3Singleton.get_EnergySystem()
 contract_GameItems = Web3Singleton.get_GameItems()
 contract_PGLDToken = Web3Singleton.get_PGLDToken()
 
@@ -180,12 +181,12 @@ def get_nova_eth_balance(address):
     eth_balance_eth = float(web3_Nova.from_wei(eth_balance_wei, 'ether'))
     return eth_balance_eth
 
-def get_PGLD_for_Address(address, long_form=False):
+def get_energy(address, long_form=False):
     # Replace this with your logic to get PGLD for the address
     pgld_amount = 0  # Replace with the actual PGLD amount
     function_name = 'getEnergy'
     function_args = [int(address,16)]
-    result = contract_transparentUpgradeableProxy.functions[function_name](*function_args).call()    
+    result = contract_EnergySystem.functions[function_name](*function_args).call()    
     if long_form:
         return result
     else:

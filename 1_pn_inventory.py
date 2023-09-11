@@ -92,7 +92,7 @@ def excel_sheet(json_string, ordered_addresses):
 
         # read the acrive energy for the address
         if GET_ENERGY_BALANCE:
-            df.loc[address,'Energy'] =  pn.get_PGLD_for_Address(address)
+            df.loc[address,'Energy'] =  pn.get_energy(address)
         
         pgld = float(currencies[0]['amount'])
         if pgld > 0 : pgld = pgld / (10 ** 18)
