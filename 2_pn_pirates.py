@@ -22,6 +22,7 @@ formatted_output = ', '.join(f'"{address}"' for address in addresses)
 # XP required for each level
 total_xp_to_level_up = [0, 0, 25, 50, 100, 200, 400, 700, 1100, 1600, 2100, 2600, 3100, 3600, 4100, 5100, 6100, 7100, 8100, 9100, 10100, 11600, 13100, 14600, 16100, 18100, 20100, 22100, 24100, 26100, 28100, 0]
 
+
 expertise_id_mapping = {
     "1": "Attack",
     "2": "Evasion",
@@ -53,6 +54,9 @@ query = f"""
 """
 
 data = requests.post("https://subgraph.satsuma-prod.com/208eb2825ebd/proofofplay/pn-nova/api", json={'query': query}).json()
+
+# Read the level_chart into a data frame once
+df_level_chart = pd.read_csv("../pn data/LevelChart.csv")
 
 # Maps expertise IDs to their respective names
 def map_expertise(nft, expertise_id_mapping):
@@ -86,21 +90,36 @@ def add_next_claim_date(nft):
     nft['traits'].append({'metadata': {'name': 'Next Claim Date'}, 'value': next_claim_date})
     nft['traits'].append({'metadata': {'name': 'ClaimedChests'}, 'value': max_milestone_index+1})    
 
+# Calculates the level based on XP and returns the amount of xp to the next level as well
+def get_potential_level(xp_value):
+    try:
+        level = None
+        xp_to_next_level = None
+
+        # Iterate through the level_chart and find the level
+        for index, row in df_level_chart.iterrows():
+            if xp_value >= row['XP Needed']:
+                level = row['Level']
+            else:
+                xp_to_next_level = row['XP Needed'] - xp_value
+                break
+
+        return level, xp_to_next_level
+
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+
 # Calculate the upgradable level and add related traits
 def calculate_upgradable_level(total_xp_to_level_up, nft):
     xp = next((int(trait['value']) for trait in nft['traits'] if trait['metadata']['name'] == 'xp'), 0)
-    currentLevel = next((int(trait['value']) for trait in nft['traits'] if trait['metadata']['name'] == 'level'), 0)
-    upgradableLevel = next((i for i, xp_required in enumerate(total_xp_to_level_up) if xp < xp_required), len(total_xp_to_level_up))
-    if currentLevel == upgradableLevel - 1:
-        upgradableLevel = 0
-        if currentLevel < 30:
-            nft['traits'].append({'metadata': {'name': 'to next'}, 'value': total_xp_to_level_up[currentLevel+1]-xp})
+    current_level = next((int(trait['value']) for trait in nft['traits'] if trait['metadata']['name'] == 'level'), 0)
+    potential_level, xp_needed = get_potential_level(xp)
+    
+    if potential_level > current_level :
+        nft['traits'].append({'metadata': {'name': 'potential'}, 'value': potential_level}) 
     else:
-        upgradableLevel -= 1
-        if upgradableLevel < 31:
-            nft['traits'].append({'metadata': {'name': 'to next'}, 'value': total_xp_to_level_up[upgradableLevel+1]-xp})
-            nft['traits'].append({'metadata': {'name': 'potential'}, 'value': upgradableLevel})    
-
+        nft['traits'].append({'metadata': {'name': 'to next'}, 'value': xp_needed})
 
 data_to_export = []
 
