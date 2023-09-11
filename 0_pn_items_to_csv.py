@@ -1,6 +1,7 @@
 import requests
 import json
 import pandas as pd
+import pn_helper as pn
 from concurrent.futures import ThreadPoolExecutor
 
 def read_addresses(file_path):
@@ -24,10 +25,6 @@ def make_query(address):
       }}
     }}
     """
-
-def get_data(url, query):
-    response = requests.post(url, json={'query': query})
-    return response.json()
 
 def merge_data(data_list):
     merged_data = {"data": {"accounts": []}}
@@ -68,7 +65,7 @@ def to_csv(json_string):
     df.fillna(0, inplace=True)
 
     # Convert the DataFrame to CSV
-    df.to_csv('../pn data/game_items.csv', index=False)
+    df.to_csv(pn.data_path('game_items.csv'), index=False)
 
 def fetch_data(address, url):
     query = make_query(address)
@@ -76,9 +73,13 @@ def fetch_data(address, url):
     return response.json()
 
 def main():
-    file_path = '../pn data/addresses.txt'  # Replace with your file path
-    url = "https://subgraph.satsuma-prod.com/208eb2825ebd/proofofplay/pn-nova/api"
-    addresses = read_addresses(file_path)
+    file_path = pn.data_path('addresses.txt')  
+    addresses = pn.read_addresses(file_path)
+    url = pn.URL_PIRATE_NATION_GRAPH_API
+
+    ############################################################################################################################
+    # NOTE: We are running multiple concurrent queries over the graph and we should refactor this to do a single aggregated call
+    ############################################################################################################################
 
     # Use ThreadPoolExecutor to parallelize requests
     with ThreadPoolExecutor(max_workers=5) as executor:

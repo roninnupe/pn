@@ -3,31 +3,25 @@ import random
 import argparse
 import time
 import pandas as pd
-import json
-import requests
-from web3 import Web3, HTTPProvider
+import pn_helper as pn
 from eth_utils import to_checksum_address
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description='Move PGLD from a list of wallets found in the sender_csv to the receiver_address. Optionally specify an operator which is a wallet authorized to move the gold, otherwise it will assume the reciever_address is the operator. You may also specify a range (leaveBehindMin and leaveBehindMax) to leave behind a random amount of gold between those two values.')
 
-    # Optional argument: min_move (default: 1)
-    parser.add_argument('--min_move', type=int, default=1, help='Minimum PGLD move amount. will not move if the value to move is less than this (default: 1)')
+    # Optional argument: min_move (default: 1000)
+    parser.add_argument('--min_move', type=int, default=1000, help='Minimum PGLD move amount. will not move if the value to move is less than this (default: 1000)')
 
-    # Optional argument: leave_behind_mib (default: 0)
-    parser.add_argument('--leave_behind_min', type=int, default=0, help='Minimum amount of gold to leave behind (optional, default: 0)')
+    # Optional argument: leave_behind_mib (default: 2500)
+    parser.add_argument('--leave_behind_min', type=int, default=2500, help='Minimum amount of gold to leave behind (optional, default: 2500)')
 
-    # Optional argument: leave_behind_max (default: 0)
-    parser.add_argument('--leave_behind_max', type=int, default=0, help='Maximum amount of gold to leave behind (optional, default: 0)')
+    # Optional argument: leave_behind_max (default: 3000)
+    parser.add_argument('--leave_behind_max', type=int, default=3000, help='Maximum amount of gold to leave behind (optional, default: 3000)')
 
     # Add the 'automate' argument
     parser.add_argument('--automate', action='store_true', help='Automate the process')
 
     return parser.parse_args()
-
-def read_addresses(walletfile):
-    with open(walletfile, 'r') as f:
-        return [line.strip().lower() for line in f]
 
 def make_query(address):
     return f"""
@@ -41,14 +35,12 @@ def make_query(address):
     }}
     """
 
-def get_data(url, query):
-    response = requests.post(url, json={'query': query})
-    return response.json()
-
 def main():
     args = parse_arguments()
 
-    df_config = pd.read_csv('pn_collect_item_config.csv')
+    df_config = pd.read_csv(pn.data_path("pn_collect_item_config.csv"))
+    pn.load_address_key_mapping(pn.data_path("addresses.csv"))
+
     print("Available operators:")
     for index, row in df_config.iterrows():
         print(f"{index + 1}. {row['name']} - {row['operator_address']}")   
@@ -63,8 +55,8 @@ def main():
 
      # Find the corresponding hex value for the selected bounty_name
     selected_operator = df_config.iloc[selected_index]['operator_address']
-    selected_recipients = df_config.iloc[selected_index]['recipient_file']     
-    selected_senders = df_config.iloc[selected_index]['sender_file']         
+    selected_recipients = pn.data_path(df_config.iloc[selected_index]['recipient_file'])     
+    selected_senders = pn.data_path(df_config.iloc[selected_index]['sender_file'])         
 
     leave_behind_min = args.leave_behind_min
     leave_behind_max = args.leave_behind_max
@@ -74,15 +66,13 @@ def main():
     min_move = args.min_move * X_PGLD_LONG
 
     # Now you can use these variables in your script as needed.
+    print("Operator Address:", selected_operator)   
     print("Receiver CSV File:", selected_recipients)
-    print("Operator Address:", selected_operator)
     print("Sender CSV File:", selected_senders)
     print("Leave Behind Min:", leave_behind_min)
     print("Leave Behind Max:", leave_behind_max)
     print("Min Move Amount:", args.min_move)
     print("----------------------------------------------------------------------------------------------------------------------------------------")
-
-    url = "https://subgraph.satsuma-prod.com/208eb2825ebd/proofofplay/pn-nova/api"
     
     #grab the arg wlletfiles of senders
     df_senders = pd.read_csv(selected_senders)
@@ -93,15 +83,11 @@ def main():
 
     recipient_cycle = cycle(recipients)   
 
-    # Initialize web3. Replace the rpc_url with your own
-    web3 = Web3(HTTPProvider('https://nova.arbitrum.io/rpc'))
+    # Initialize web3 stuff
+    url = pn.URL_PIRATE_NATION_GRAPH_API   
+    web3 = pn.web3_Nova
+    contract = pn.contract_PGLDToken
 
-    # Define the contract ABI
-    abi = getGoldABI()
-
-    # Define contract address and contract
-    contract_address = getGoldContractAddress()
-    contract = web3.eth.contract(address=contract_address, abi=abi)  
 
     for index, row in df_senders.iterrows():
 
@@ -110,7 +96,7 @@ def main():
         address = row['address'].lower()
 
         query = make_query(address)
-        json_data = get_data(url, query)
+        json_data = pn.get_data(query)
         
         for account in json_data['data']['accounts']:      
             
@@ -151,15 +137,6 @@ def main():
                     print("No gold to move")
                     print("----------------------------------------------------------------------------------------------------------------------------------------")                    
 
-def find_key_for_address(csv_file, target_address):
-    df = pd.read_csv(csv_file)
-    df['address_lower'] = df['address'].str.lower()  # Create a lowercase version of the 'address' column
-    filtered_df = df[df['address_lower'] == target_address.lower()]
-    
-    if not filtered_df.empty:
-        return filtered_df['key'].iloc[0]
-    return None
-
 def transfer_PGLD(web3, contract, recipient, operator, sender, pgld_amount):
 
     operator_address = to_checksum_address(operator.lower())
@@ -180,7 +157,7 @@ def transfer_PGLD(web3, contract, recipient, operator, sender, pgld_amount):
     txn_dict['gas'] = web3.eth.estimate_gas(txn_dict)
                     
     # Sign the transaction using your private key
-    private_key = find_key_for_address("addresses.csv", operator)
+    private_key = pn.find_key_for_address(operator)
     signed_txn = web3.eth.account.sign_transaction(txn_dict, private_key=private_key)
                     
     # Send the transaction
@@ -192,47 +169,6 @@ def transfer_PGLD(web3, contract, recipient, operator, sender, pgld_amount):
                     
     print(f"Transfer completed from {sender} to {recipient}")
     print("----------------------------------------------------------------------------------------------------------------------------------------")            
-
-
-def getItemContractAddress():
-    contract_address = '0x3B4cdb27641bc76214a0cB6cae3560a468D9aD4A'
-    return contract_address
-
-def getGoldContractAddress():
-    contract_address = '0x3C2e532a334149D6a2E43523f2427e2fA187c5f0'
-    return contract_address
-
-def getItemABI():
-    abi = [{
-    "inputs": [
-        {"internalType":"address","name":"from","type":"address"},
-        {"internalType":"address","name":"to","type":"address"},
-        {"internalType":"uint256[]","name":"ids","type":"uint256[]"},
-        {"internalType":"uint256[]","name":"amounts","type":"uint256[]"},
-        {"internalType":"bytes","name":"data","type":"bytes"}
-    ],
-    "name": "safeBatchTransferFrom",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-    }]
-    
-    return abi
-
-def getGoldABI():
-    abi = [{
-    "inputs": [
-        {"internalType":"address","name":"sender","type":"address"},
-        {"internalType":"address","name":"recipient","type":"address"},
-        {"internalType":"uint256[]","name":"amount","type":"uint256"},
-    ],
-    "name": "transferFrom",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-    }]
-    
-    return abi
 
 if __name__ == "__main__":
     main()    

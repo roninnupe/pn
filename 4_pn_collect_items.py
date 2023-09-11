@@ -6,10 +6,7 @@ import json
 from web3 import Web3, HTTPProvider
 from eth_utils import to_checksum_address
 from itertools import cycle
-
-def read_addresses(file_path):
-    with open(file_path, 'r') as f:
-        return [line.strip().lower() for line in f]
+import pn_helper as pn
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description='Script to move items. requires pn_collect_items_config.csv and referenced files')
@@ -18,32 +15,6 @@ def parse_arguments():
     parser.add_argument('--automate', action='store_true', help='Automate the process')
 
     return parser.parse_args()
-
-def getItemABI():
-    abi = [{
-    "inputs": [
-        {"internalType":"address","name":"from","type":"address"},
-        {"internalType":"address","name":"to","type":"address"},
-        {"internalType":"uint256[]","name":"ids","type":"uint256[]"},
-        {"internalType":"uint256[]","name":"amounts","type":"uint256[]"},
-        {"internalType":"bytes","name":"data","type":"bytes"}
-    ],
-    "name": "safeBatchTransferFrom",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-    }]
-    
-    return abi
-
-def find_key_for_address(csv_file, target_address):
-    df = pd.read_csv(csv_file)
-    df['address_lower'] = df['address'].str.lower()  # Create a lowercase version of the 'address' column
-    filtered_df = df[df['address_lower'] == target_address.lower()]
-    
-    if not filtered_df.empty:
-        return filtered_df['key'].iloc[0]
-    return None
 
 def batch_transfer(web3, contract, recipient, operator, wallet_address, token_ids, amounts):
  
@@ -61,15 +32,13 @@ def batch_transfer(web3, contract, recipient, operator, wallet_address, token_id
         print(f"{token_ids}\n\n{amounts}\n\n")
         print(txn_dict)
 
-        
-
         # Estimate the gas for this specific transaction
         txn_dict['gas'] = web3.eth.estimate_gas(txn_dict)
 
         print(f"Gas: {txn_dict['gas']}")
 
         # Sign the transaction using your private key
-        private_key = find_key_for_address("addresses.csv", operator)
+        private_key = pn.find_key_for_address(operator)
         signed_txn = web3.eth.account.sign_transaction(txn_dict, private_key=private_key)
 
         # Send the transaction
@@ -89,7 +58,9 @@ def batch_transfer(web3, contract, recipient, operator, wallet_address, token_id
 def main():
     args = parse_arguments()
 
-    df_config = pd.read_csv('../pn data/pn_collect_item_config.csv')
+    df_config = pd.read_csv(pn.data_path("pn_collect_item_config.csv"))
+    pn.load_address_key_mapping(pn.data_path("addresses.csv"))
+
     print("Available operators:")
     for index, row in df_config.iterrows():
         print(f"{index + 1}. {row['name']} - {row['operator_address']}")   
@@ -104,8 +75,8 @@ def main():
 
      # Find the corresponding hex value for the selected bounty_name
     selected_operator = df_config.iloc[selected_index]['operator_address']
-    selected_recipients =f"../pn data/{df_config.iloc[selected_index]['recipient_file']}"    
-    selected_senders = f"../pn data/{df_config.iloc[selected_index]['sender_file']}"       
+    selected_recipients = pn.data_path(df_config.iloc[selected_index]['recipient_file'])    
+    selected_senders =  pn.data_path(df_config.iloc[selected_index]['sender_file'])       
 
     print("Loading data:")
     print(f"Operator: {selected_operator}")
@@ -113,26 +84,20 @@ def main():
     print(f"Senders file: {selected_senders}")  
 
     # Load data from JSON
-    with open('../pn data/data_tokenId_items.json', 'r') as f:
+    with open(pn.data_path("data_tokenId_items.json"), 'r') as f:
         data = json.load(f)
         gameItems = data["data"]["gameItems"]
         # Convert list of dictionaries to a dictionary
         item_to_tokenId = {item["name"].lower(): int(item["tokenId"]) for item in gameItems}
 
     # Load data from CSV
-    df = pd.read_csv('../pn data/game_items.csv')
+    df = pd.read_csv(pn.data_path("game_items.csv"))
     # Strip whitespaces from column names
     df.columns = df.columns.str.strip()
 
-    # Initialize web3. Replace the rpc_url with your own
-    web3 = Web3(HTTPProvider('https://nova.arbitrum.io/rpc'))
-
-    # Define the contract ABI for safeBatchTransferFrom method
-    abi = getItemABI() 
-
-    # Define contract address and contract
-    contract_address = '0x3B4cdb27641bc76214a0cB6cae3560a468D9aD4A'
-    contract = web3.eth.contract(address=contract_address, abi=abi)
+    # Initialize web3 and contract
+    web3 = pn.web3_Nova
+    contract = pn.contract_GameItems
 
     # Set the recipient address(es) LFG    
     df_recipients = pd.read_csv(selected_recipients)

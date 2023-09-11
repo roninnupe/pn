@@ -92,11 +92,7 @@ def excel_sheet(json_string, ordered_addresses):
 
         # read the acrive energy for the address
         if GET_ENERGY_BALANCE:
-            function_name = 'getEnergy'
-            function_args = [int(address,16)]
-            result = pn.contract_transparentUpgradeableProxy.functions[function_name](*function_args).call()
-            df.loc[address,'Energy'] =  round((result /  10 ** 18), 0)   
-
+            df.loc[address,'Energy'] =  pn.get_PGLD_for_Address(address)
         
         pgld = float(currencies[0]['amount'])
         if pgld > 0 : pgld = pgld / (10 ** 18)
