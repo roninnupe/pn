@@ -1,11 +1,11 @@
 import time
 import pandas as pd
-import requests
-import json
 from datetime import datetime, timedelta
 import pytz
+import pn_helper as pn
 
 start_time = time.time() 
+print("Starting Script...")
 
 #-------- FUNCTIONS -----------------------------------------
 
@@ -92,16 +92,15 @@ def calculate_upgradable_level(nft):
 #---------------------------------------------------------
 
 # Step 1: Read addresses from a text file and create a dictionary mapping addresses to IDs.
-with open('../pn data/addresses.txt', 'r') as file:
-    addresses = file.read().splitlines()
-addresses = [address.lower().strip() for address in addresses]
+file_path = pn.data_path('addresses.txt')  
+addresses = pn.read_addresses(file_path)
+formatted_output = pn.format_addresses_for_query(addresses)
 address_id_dict = {address: i+1 for i, address in enumerate(addresses)}
-formatted_output = ', '.join(f'"{address}"' for address in addresses)
 
 # GraphQL Query to get all the pirate data based off of all the addresses in the text file
 query = f"""
 {{
-    accounts(where: {{address_in: [{formatted_output}]}} ) {{
+    accounts(where: {{address_in: {formatted_output}}} ) {{
         address
         nfts(first: 1000, where: {{nftType: "pirate"}}) {{
             tokenId
@@ -109,7 +108,7 @@ query = f"""
                 milestoneIndex
             }}
             lastTransfer
-            traits {{
+            traits {{ 
                 value
                 metadata {{
                     name
@@ -121,7 +120,7 @@ query = f"""
 """
 
 # Step 2: Fetch the Data using the query from the PN Graph API 
-data = requests.post("https://subgraph.satsuma-prod.com/208eb2825ebd/proofofplay/pn-nova/api", json={'query': query}).json()
+data = pn.get_data(query)
 
 # Prepare data to export 
 data_to_export = []
