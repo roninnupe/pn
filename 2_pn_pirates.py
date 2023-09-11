@@ -95,11 +95,11 @@ def calculate_upgradable_level(total_xp_to_level_up, nft):
         upgradableLevel = 0
         if currentLevel < 30:
             nft['traits'].append({'metadata': {'name': 'to next'}, 'value': total_xp_to_level_up[currentLevel+1]-xp})
-        else:
-            upgradableLevel -= 1
-            if upgradableLevel < 31:
-                nft['traits'].append({'metadata': {'name': 'to next'}, 'value': total_xp_to_level_up[upgradableLevel+1]-xp})
-                nft['traits'].append({'metadata': {'name': 'potential'}, 'value': upgradableLevel})    
+    else:
+        upgradableLevel -= 1
+        if upgradableLevel < 31:
+            nft['traits'].append({'metadata': {'name': 'to next'}, 'value': total_xp_to_level_up[upgradableLevel+1]-xp})
+            nft['traits'].append({'metadata': {'name': 'potential'}, 'value': upgradableLevel})    
 
 
 data_to_export = []
