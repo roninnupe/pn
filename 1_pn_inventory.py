@@ -4,30 +4,7 @@ import math
 import time
 import pandas as pd
 from web3 import Web3
-
-#ABI to read active bounties
-contract_address = "0x26DcA20a55AB5D38B2F39E6798CDBee87A5c983D"
-read_ABI = [
-        {
-            "inputs": [
-                {
-                    "internalType": "uint256",
-                    "name": "entity",
-                    "type": "uint256"
-                }
-            ],
-            "name": "getEnergy",
-            "outputs": [
-                {
-                    "internalType": "uint256",
-                    "name": "",
-                    "type": "uint256"
-                }
-            ],
-            "stateMutability": "view",
-            "type": "function"
-        }
-    ]
+import pn_helper as pn
 
 # Global boolean variables
 GET_ETH_BALANCE = False
@@ -45,49 +22,6 @@ def fetch_user_inputs():
     GET_ETH_BALANCE = True if get_eth_balance_input.lower() == 'y' else False
     GET_ENERGY_BALANCE = True if get_energy_input.lower() == 'y' else False
 
-
-def read_addresses(file_path):
-    with open(file_path, 'r') as f:
-        return [line.strip().lower() for line in f]
-
-def make_query(address):
-    return f"""
-    {{
-      accounts(where: {{address: "{address}"}}){{
-        address
-        currencies{{
-            amount
-        }}
-        gameItems(where: {{amount_gt:0}}){{
-          amount
-          gameItem{{
-            name
-          }}
-        }}
-        nfts(where:{{nftType: "ship"}}){{
-          name
-        }}        
-      }}
-    }}
-    """
-
-def get_eth_to_usd_price():
-    try:
-        response = requests.get("https://api.coincap.io/v2/assets/ethereum")
-        response.raise_for_status()  # Raise an exception if the response status code is not 200
-        
-        data = response.json()  # Parse the JSON content of the response
-        eth_to_usd_price = data["data"]["priceUsd"]  # Extract the ETH to USD price
-
-        return float(eth_to_usd_price)
-    except requests.exceptions.RequestException as e:
-        print("Error making API request:", e)
-        return None
-
-def get_data(url, query):
-    response = requests.post(url, json={'query': query})
-    return response.json()
-
 def merge_data(data_list):
     merged_data = {"data": {"accounts": []}}
     for data in data_list:
@@ -101,7 +35,7 @@ def excel_sheet(json_string, ordered_addresses):
     # Load up the inventory mapping, which is a file that has data_name and friendly display name mappings.
     # this is uded to help set the display order of columns, and their friendly name version. 
     # all additional items not listed will appear as their traditional name loaded from the jsaon and after the specified items
-    df_data_mappings = pd.read_csv('../pn data/InventoryMapping.csv') 
+    df_data_mappings = pd.read_csv(pn.data_path('InventoryMapping.csv')) 
     data_name_to_display_name = df_data_mappings.set_index('data_name')['display_name'].to_dict()    
 
     # Define initial columns in the order we want
@@ -113,24 +47,13 @@ def excel_sheet(json_string, ordered_addresses):
     # Initialize walletID
     walletID = 1
 
-    # Connect to the Arbitrum Nova chain node
-
-    arbitrum_nova_url1 = 'https://nova.arbitrum.io/rpc'
-    arbitrum_nova_url2 = 'https://arb1.arbitrum.io/rpc'
-    web3_1 = Web3(Web3.HTTPProvider(arbitrum_nova_url1)) 
-    web3_2 = Web3(Web3.HTTPProvider(arbitrum_nova_url2))  
-
     if GET_ETH_BALANCE:
         # Get the ETH-to-USD exchange rate
         start_time = time.time()   
-        eth_to_usd_price = get_eth_to_usd_price()
+        eth_to_usd_price = pn.get_eth_to_usd_price()
         end_time = time.time()
         execution_time = end_time - start_time
-        print(f"Fetching Eth-to-USD - execution time: {execution_time:.2f} seconds")   
-
-    # Define contract address and contract
-    # Initialize web3 with the PN
-    contract_to_read = web3_1.eth.contract(address=contract_address, abi=read_ABI)    
+        print(f"Fetching Eth-to-USD - execution time: {execution_time:.2f} seconds")      
 
     # Set execution tume for the loop
     number_of_accounts = len(data['data']['accounts'])
@@ -164,18 +87,14 @@ def excel_sheet(json_string, ordered_addresses):
 
         # Get the ETH balance
         if GET_ETH_BALANCE:
-            eth_balance_wei = web3_1.eth.get_balance(Web3.to_checksum_address(address.lower()))
-            if eth_balance_wei == 0 :
-                eth_balance_wei = web3_2.eth.get_balance(Web3.to_checksum_address(address.lower()))
-            eth_balance_eth = float(web3_1.from_wei(eth_balance_wei, 'ether'))       
-
+            eth_balance_eth = pn.get_nova_eth_balance(address)       
             df.loc[address,'Nova $'] =  round(eth_balance_eth * eth_to_usd_price, 2)
 
         # read the acrive energy for the address
         if GET_ENERGY_BALANCE:
             function_name = 'getEnergy'
             function_args = [int(address,16)]
-            result = contract_to_read.functions[function_name](*function_args).call()
+            result = pn.contract_transparentUpgradeableProxy.functions[function_name](*function_args).call()
             df.loc[address,'Energy'] =  round((result /  10 ** 18), 0)   
 
         
@@ -227,7 +146,7 @@ def excel_sheet(json_string, ordered_addresses):
 
     # Convert DataFrame to Excel
     # Versions of Pandas >= 1.3.0:
-    file_name = '../pn data/pn_inventory.xlsx'
+    file_name = pn.data_path('pn_inventory.xlsx')
     xlWriter = pd.ExcelWriter(file_name,engine='xlsxwriter',engine_kwargs={'options': {'strings_to_numbers': True}})
 
     # Export to Excel
@@ -261,11 +180,9 @@ def excel_sheet(json_string, ordered_addresses):
     xlWriter._save()
 
 def main():
-    file_path = '../pn data/addresses.txt'  # replace with your file path
-    url = "https://subgraph.satsuma-prod.com/208eb2825ebd/proofofplay/pn-nova/api"
-    addresses = read_addresses(file_path)
-    formatted_output = ', '.join(f'"{address}"' for address in addresses)
-    data_list = []
+    file_path = pn.data_path('addresses.txt')  
+    addresses = pn.read_addresses(file_path)
+    formatted_output = pn.format_addresses_for_query(addresses)
 
     # Call the function to fetch user inputs and set global variables
     fetch_user_inputs()
@@ -274,7 +191,7 @@ def main():
 
     query = f"""
         {{
-            accounts(where: {{address_in: [{formatted_output}]}}){{
+            accounts(where: {{address_in: {formatted_output}}}){{
                 address
                 currencies{{
                     amount
@@ -291,7 +208,7 @@ def main():
             }}
         }}
         """
-    data = requests.post(url, json={'query': query}).json()
+    data = pn.get_data(query)
 
     end_time = time.time()
     execution_time = end_time - start_time
@@ -301,8 +218,7 @@ def main():
     excel_sheet(json.dumps(data, indent=4), addresses)
     end_time = time.time()
     execution_time = end_time - start_time
-    print(f"Creating excel from data - execution time: {execution_time:.2f} seconds")    
-
+    print(f"Creating excel from data - execution time: {execution_time:.2f} seconds") 
 
 if __name__ == "__main__":
     main()
