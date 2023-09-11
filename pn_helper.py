@@ -1,73 +1,56 @@
 # pn_helper.py
 # https://docs.piratenation.game/important/contracts
 
+import json
 import requests
 import pandas as pd
 from web3 import Web3
 import personal_settings # you are required to make a personal settings and define certain variables to help scripts
 
 
+######################################################
+# WEB 3 END POINTS & Other API references
+######################################################
+
 URL_COINCAP_API = "https://api.coincap.io/v2/assets/ethereum"
 URL_ARB_NOVA_RPC = "https://nova.arbitrum.io/rpc"
 URL_ARB_NOVA_RPC_ALT = "https://arb1.arbitrum.io/rpc"
 URL_PIRATE_NATION_GRAPH_API = "https://subgraph.satsuma-prod.com/208eb2825ebd/proofofplay/pn-nova/api"
 
-_contract_EnergySystem = "0x26DcA20a55AB5D38B2F39E6798CDBee87A5c983D"
-# The ABI for TransparentUpgradeableProxy - might need to expand it to include other functions over time
-_ABI_EnergySystem = [
-        {
-            "inputs": [
-                {
-                    "internalType": "uint256",
-                    "name": "entity",
-                    "type": "uint256"
-                }
-            ],
-            "name": "getEnergy",
-            "outputs": [
-                {
-                    "internalType": "uint256",
-                    "name": "",
-                    "type": "uint256"
-                }
-            ],
-            "stateMutability": "view",
-            "type": "function"
-        }
-    ]
+# contract addresses and their respective URL to JSON formats of their ABIs
+_contract_EnergySystem_addr = "0x26DcA20a55AB5D38B2F39E6798CDBee87A5c983D"
+_abi_URL_EnergySystem = "https://api-nova.arbiscan.io/api?module=contract&action=getabi&address=0x5635Dc8d6A8aDFc2ABe4eF8A6a1b06c9CB1d5185"
 
 _contract_GameItems_addr = "0x3B4cdb27641bc76214a0cB6cae3560a468D9aD4A"
-_ABI_GameItems = [
-    {
-        "inputs": [
-            {"internalType": "address", "name": "from", "type": "address"},
-            {"internalType": "address", "name": "to", "type": "address"},
-            {"internalType": "uint256[]", "name": "ids", "type": "uint256[]"},
-            {"internalType": "uint256[]", "name": "amounts", "type": "uint256[]"},
-            {"internalType": "bytes", "name": "data", "type": "bytes"}
-        ],
-        "name": "safeBatchTransferFrom",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    }
-]
+_abi_URL_GameItems = "https://api-nova.arbiscan.io/api?module=contract&action=getabi&address=0xad6Bd6a4F2279d6Ece6f2be15d5Ce80719b1E361"
 
-_contract_PGLD = "0x3C2e532a334149D6a2E43523f2427e2fA187c5f0"
-_ABI_PGLD = [
-    {
-        "inputs": [
-            {"internalType": "address", "name": "sender", "type": "address"},
-            {"internalType": "address", "name": "recipient", "type": "address"},
-            {"internalType": "uint256[]", "name": "amount", "type": "uint256"},
-        ],
-        "name": "transferFrom",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function",
-    }
-]
+_contract_PGLD_addr = "0x3C2e532a334149D6a2E43523f2427e2fA187c5f0"
+_abi_URL_PGLD = "https://api-nova.arbiscan.io/api?module=contract&action=getabi&address=0x71BD13EF8f3D63F6924f48b6806D7000A355B353"
 
+_contract_BountySystem_addr = "0xE6FDcF808cD795446b3520Be6487917E9B82339a"
+_abi_URL_BountySystem = "https://api-nova.arbiscan.io/api?module=contract&action=getabi&address=0x13A2C5f0fF0Afd50278f78a48dcE94e656187cf2"
+
+def get_abi_from_url(abi_url):
+    try:
+        # Make an HTTP GET request to fetch the ABI
+        response = requests.get(abi_url)
+
+        # Check if the request was successful (status code 200)
+        if response.status_code == 200:
+            # Parse the JSON response into a Python dictionary
+            abi_data = json.loads(response.text)
+
+            # Extract the ABI from the dictionary
+            abi = json.loads(abi_data['result'])
+
+            return abi
+
+        else:
+            print("Failed to fetch ABI from the URL.")
+            return None
+    except Exception as e:
+        print(f"Error: {str(e)}")
+        return None
 
 class Web3Singleton:
     _web3_Nova = None
@@ -75,6 +58,7 @@ class Web3Singleton:
     _EnergySystem = None  
     _GameItems = None  
     _PGLDToken = None
+    _BountySystem = None
 
     @classmethod
     def get_web3_Nova(cls):
@@ -92,28 +76,40 @@ class Web3Singleton:
     def get_EnergySystem(cls):
         if cls._EnergySystem is None:
             web3_Nova = cls.get_web3_Nova()
-            cls._EnergySystem = web3_Nova.eth.contract(address=_contract_EnergySystem, abi=_ABI_EnergySystem)
+            cls._EnergySystem = web3_Nova.eth.contract(address=_contract_EnergySystem_addr, abi=get_abi_from_url(_abi_URL_EnergySystem))
         return cls._EnergySystem
     
     @classmethod
     def get_GameItems(cls):
         if cls._GameItems is None:
             web3_Nova = cls.get_web3_Nova()
-            cls._GameItems = web3_Nova.eth.contract(address=_contract_GameItems_addr, abi=_ABI_GameItems)
+            cls._GameItems = web3_Nova.eth.contract(address=_contract_GameItems_addr, abi=get_abi_from_url(_abi_URL_GameItems))
         return cls._GameItems   
 
     @classmethod
     def get_PGLDToken(cls):
         if cls._PGLDToken is None:
             web3_Nova = cls.get_web3_Nova()
-            cls._PGLDToken = web3_Nova.eth.contract(address=_contract_PGLD, abi=_ABI_PGLD)
-        return cls._PGLDToken         
+            cls._PGLDToken = web3_Nova.eth.contract(address=_contract_PGLD_addr, abi=get_abi_from_url(_abi_URL_PGLD))
+        return cls._PGLDToken      
+
+    @classmethod
+    def get_BountySystem(cls):
+        if cls._BountySystem is None:
+            web3_Nova = cls.get_web3_Nova()
+            cls._BountySystem = web3_Nova.eth.contract(address=_contract_BountySystem_addr, abi=get_abi_from_url(_abi_URL_BountySystem))
+        return cls._BountySystem           
 
 web3_Nova = Web3Singleton.get_web3_Nova()
 web3_NovaAlt = Web3Singleton.get_web3_NovaAlt()
 contract_EnergySystem = Web3Singleton.get_EnergySystem()
 contract_GameItems = Web3Singleton.get_GameItems()
 contract_PGLDToken = Web3Singleton.get_PGLDToken()
+contract_BountySystem = Web3Singleton.get_BountySystem()
+
+######################################################
+# HELPER FUNCTIONS
+######################################################
 
 # returns a full formed file path - useful to know where to find files
 def data_path(filename) :

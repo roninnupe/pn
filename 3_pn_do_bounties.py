@@ -2,21 +2,11 @@ import argparse
 import random
 import time
 import pandas as pd
+import pn_helper as pn
 import json
 import requests
 from web3 import Web3, HTTPProvider
 from eth_utils import to_checksum_address
-
-# GLOBAL VARIABLES
-
-# The Pirate Nation Graph for queries
-prod_graph_url = "https://subgraph.satsuma-prod.com/208eb2825ebd/proofofplay/pn-nova/api"
-
-# The Main Nova RPC
-nova_rpc_main = "https://nova.arbitrum.io/rpc"
-
-# The Bounty Contract Address
-contract_address = '0xE6FDcF808cD795446b3520Be6487917E9B82339a'
 
 # The query used to get all bounties from the PN Grpah
 bounty_query = """
@@ -37,64 +27,6 @@ bounty_query = """
     }
     """
 
-#ABI to read active bounties
-active_bounty_ABI = [
-        {
-            "inputs": [
-                {
-                    "internalType": "address",
-                    "name": "account",
-                    "type": "address"
-                }
-            ],
-            "name": "activeBountyIdsForAccount",
-            "outputs": [
-                {
-                    "internalType": "uint256[]",
-                    "name": "",
-                    "type": "uint256[]"
-                }
-            ],
-            "stateMutability": "view",
-            "type": "function"
-        }
-    ]
-
-#ABI to write to the bounty controct
-write_bounty_ABI = [
-        {
-            "inputs": [
-                {
-                    "internalType": "uint256",
-                    "name": "activeBountyId",
-                    "type": "uint256"
-                }
-            ],
-            "name": "endBounty",
-            "outputs": [],
-            "stateMutability": "nonpayable",
-            "type": "function"
-        },
-        {
-            "inputs": [
-                {
-                    "internalType": "uint256",
-                    "name": "bountyId",
-                    "type": "uint256"
-                },
-                {
-                    "internalType": "uint256[]",
-                    "name": "entities",
-                    "type": "uint256[]"
-                }
-            ],
-            "name": "startBounty",
-            "outputs": [],
-            "stateMutability": "nonpayable",
-            "type": "function"
-        }
-    ]
-
 # A query to get all pirates that belong to a given address
 def make_pirate_query(address):
     return f"""
@@ -107,12 +39,6 @@ def make_pirate_query(address):
       }}
     }}
     """
-
-# Get Data from the following enpoint using the query and return json
-def get_json_data(url, query):
-    response = requests.post(url, json={'query': query})
-    return response.json()
-
 
 # return the bounty hex from the bounty data, using the group_id specified, and fits the proper number of pirates
 def get_bounty_hex(data, group_id, num_of_pirates):
@@ -169,6 +95,7 @@ def graph_id_to_entity(id_str: str) -> int:
     return token_to_entity(address, int(token_id))
 
 
+# Convert and address and entity to it's packed uInt256 variant
 def token_to_entity(address: str, token_id: int) -> int:
     # Convert Ethereum address from hex string to integer
     address_int = int(address, 16)
@@ -181,7 +108,7 @@ def token_to_entity(address: str, token_id: int) -> int:
 
     return packed_result
 
-
+# Convert and entity to it's address and token representation
 def entity_to_token(packed_result: int) -> (str, int):
     # Mask to extract the least significant 160 bits (Ethereum address)
     mask = (1 << 160) - 1
@@ -199,12 +126,11 @@ def entity_to_token(packed_result: int) -> (str, int):
 
     return ("0x" + address_str, token_id)  # Prefix the Ethereum address with '0x'
 
-
-
+# Return Pirates as Entities from an address
 def get_pirate_entities(address):
 
     query = make_pirate_query(address)
-    json_data = get_json_data(prod_graph_url, query)
+    json_data = pn.get_data(query)
 
     pirate_entities = []
 
@@ -217,7 +143,6 @@ def get_pirate_entities(address):
 
     return pirate_entities
 
-
 def main():
     # pull arguments out for start and end
     args = parse_arguments()
@@ -226,10 +151,10 @@ def main():
     print()
 
     # Load data from addresses.csv
-    df = pd.read_csv('../pn data/addresses.csv')
+    df = pd.read_csv(pn.data_path("addresses.csv"))
 
     # Load data from bounty_mappings.csv
-    bounty_mappings_df = pd.read_csv('../pn data/bounty_group_mappings.csv')
+    bounty_mappings_df = pd.read_csv(pn.data_path("bounty_group_mappings.csv"))
 
     # Display available bounties to the user
     print("Available bounties:")
@@ -249,17 +174,13 @@ def main():
     group_id = bounty_mappings_df.iloc[selected_index]['group_id']
 
     # Initialize web3 with the PN
-    web3 = Web3(HTTPProvider(nova_rpc_main))
-
-    # Define contract address and contract
-    contract_to_read = web3.eth.contract(address=contract_address, abi=active_bounty_ABI)
-    contract_to_write = web3.eth.contract(address=contract_address, abi=write_bounty_ABI)
+    web3 = pn.web3_Nova
 
     ended_bounties = 0
     started_bounties = 0
 
     # Load the JSON data from the file
-    bounty_data = get_json_data(prod_graph_url, bounty_query)
+    bounty_data = pn.get_data(bounty_query)
 
     print("---------------------------------------------------------------------------")
     for index, row in df.iterrows():
@@ -282,16 +203,16 @@ def main():
         # read the activeBounties for the address
         function_name = 'activeBountyIdsForAccount'
         function_args = [address]
-        result = contract_to_read.functions[function_name](*function_args).call()
+        result = pn.contract_BountySystem.functions[function_name](*function_args).call()
 
         print("Active Bounty IDs: ", result)
 
         if args.end:
             for active_bounty_id in result:
-                ended_bounties += end_bounty(web3, contract_to_write, address, private_key, active_bounty_id)
+                ended_bounties += end_bounty(web3, pn.contract_BountySystem, address, private_key, active_bounty_id)
 
         if args.start:
-            started_bounties += start_bounty(web3, contract_to_write, address, private_key, bounty_id, pirates)
+            started_bounties += start_bounty(web3, pn.contract_BountySystem, address, private_key, bounty_id, pirates)
 
         print("---------------------------------------------------------------------------")
 
