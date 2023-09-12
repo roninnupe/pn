@@ -30,8 +30,8 @@ _abi_URL_PGLD = "https://api-nova.arbiscan.io/api?module=contract&action=getabi&
 _contract_BountySystem_addr = "0xE6FDcF808cD795446b3520Be6487917E9B82339a"
 _abi_URL_BountySystem = "https://api-nova.arbiscan.io/api?module=contract&action=getabi&address=0x13A2C5f0fF0Afd50278f78a48dcE94e656187cf2"
 
-_contract_QuestSystem_addr = "0x093aE1c7F34E7219674031F16eBbEB6a0c4F8d97"
-_abi_URL_QuestSystem = "https://api-nova.arbiscan.io/api?module=contract&action=getabi&address=0x4C685581069be5586Ecdb5E8554387C0fCe0dA57"
+_contract_QuestSystem_addr = "0x8166F6be09f1da50B41dD22509a4B7573C67cEA6"
+_abi_URL_QuestSystem = "https://api-nova.arbiscan.io/api?module=contract&action=getabi&address=0x2Fe3Ece0153b404Ea73F045B88ec6528B60f1384"
 
 def get_abi_from_url(abi_url):
     try:

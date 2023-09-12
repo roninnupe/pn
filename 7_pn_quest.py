@@ -97,6 +97,9 @@ def start_quest(contract, address, key):
     signed_txn = web3.eth.account.sign_transaction(txn, private_key=key)
     txn_hash = web3.eth.send_raw_transaction(signed_txn.rawTransaction)
 
+    if DEBUG_TEST_FLAG :
+      print(txn_hash)
+    
     print(f"Transaction hash for address {address}: {txn_hash.hex()}")
 
 
@@ -113,17 +116,17 @@ def main_script():
             energy_balance = pn.get_energy(address)
             number_of_quests = math.floor(energy_balance / quest_energy_cost)
 
-            print(f"The energy balance is {energy_balance}\n\tand the quest costs {quest_energy_cost} energy to do\n\ttherefore we can do it {number_of_quests} times")
+            print(f"{wallet_id} - The energy balance is {energy_balance} and the quest costs {quest_energy_cost} energy to do, therefore we can do it {number_of_quests} times")
 
             for _ in range(number_of_quests):
                 try:
-                  print(f"{wallet_id} ({energy_balance}/150) - ", end='', flush=True)
+                  print(f"{wallet_id} ({int(energy_balance)}/150) - ", end='', flush=True)
                   start_quest(quest_contract, address, key)
-                  # Delay to allow the network to update the nonce
+                  energy_balance -= quest_energy_cost
                   time.sleep(1)
                 except Exception as e:
-                    print(print(f"Transaction failed: {e}"))
-                    break
+                  print(print(f"Transaction failed: {e}"))
+                  break
 
 
 
