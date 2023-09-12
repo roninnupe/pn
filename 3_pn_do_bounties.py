@@ -180,7 +180,7 @@ def start_bounty(web3, contract_to_write, address, private_key, bounty_id, pirat
     }
 
     try:
-        send_web3_transaction(web3, private_key, txn_dict)
+        pn.send_web3_transaction(web3, private_key, txn_dict)
         print(f'Done startBounty from: {address}')
         return 1
     except Exception as e:
@@ -201,29 +201,12 @@ def end_bounty(web3, contract_to_write, address, private_key, bounty_id):
 
     try:
         # Estimate the gas for this specific transaction
-        send_web3_transaction(web3, private_key, txn_dict)
-
+        pn.send_web3_transaction(web3, private_key, txn_dict)
         print(f'Done endBounty from: {address}')
         return 1
     except Exception as e:
         print("  **Error sending endBounty transaction:", e)
         return 0
-
-
-def send_web3_transaction(web3, private_key, txn_dict):
-    # Estimate the gas for this specific transaction
-    txn_dict['gas'] = web3.eth.estimate_gas(txn_dict)
-
-    print(f"Gas: {txn_dict['gas']}")
-
-    signed_txn = web3.eth.account.sign_transaction(txn_dict, private_key=private_key)
-
-    # Send the transaction
-    txn_hash = web3.eth.send_raw_transaction(signed_txn.rawTransaction)
-    print('Transaction hash:', txn_hash.hex())  # This will give you the transaction hash
-
-    # Wait for the transaction to be mined, and get the transaction receipt
-    txn_receipt = web3.eth.wait_for_transaction_receipt(txn_hash)
 
 
 if __name__ == "__main__":

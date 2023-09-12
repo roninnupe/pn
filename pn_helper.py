@@ -293,3 +293,20 @@ def make_pirate_query(address):
       }}
     }}
     """
+
+def send_web3_transaction(web3, private_key, txn_dict):
+    # Estimate the gas for this specific transaction
+    txn_dict['gas'] = web3.eth.estimate_gas(txn_dict)
+
+    print(f"Gas: {txn_dict['gas']}")
+
+    signed_txn = web3.eth.account.sign_transaction(txn_dict, private_key=private_key)
+
+    # Send the transaction
+    txn_hash = web3.eth.send_raw_transaction(signed_txn.rawTransaction)
+    print('Transaction hash:', txn_hash.hex())  # This will give you the transaction hash
+
+    # Wait for the transaction to be mined, and get the transaction receipt
+    txn_receipt = web3.eth.wait_for_transaction_receipt(txn_hash)
+
+    return txn_receipt

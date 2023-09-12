@@ -1,4 +1,5 @@
 import math
+import time
 import pandas as pd
 import pn_helper as pn
 from web3 import Web3, HTTPProvider
@@ -103,6 +104,7 @@ def main_script():
     with open(pn.data_path("Addresses.csv"), mode='r') as file:
         csv_reader = csv.DictReader(file)
         for row in csv_reader:
+            wallet_id = row['wallet']
             address = row['address']
             key = row['key']
 
@@ -111,12 +113,19 @@ def main_script():
             energy_balance = pn.get_energy(address)
             number_of_quests = math.floor(energy_balance / quest_energy_cost)
 
-            if DEBUG_TEST_FLAG :
-              print(f"The energy balance is {energy_balance}\n\tand the quest costs {quest_energy_cost} energy to do\n\ttherefore we can do it {number_of_quests} times")
-              input()
+            print(f"The energy balance is {energy_balance}\n\tand the quest costs {quest_energy_cost} energy to do\n\ttherefore we can do it {number_of_quests} times")
 
             for _ in range(number_of_quests):
-                start_quest(quest_contract, address, key)
+                try:
+                  print(f"{wallet_id} ({energy_balance}/150) - ", end='', flush=True)
+                  start_quest(quest_contract, address, key)
+                  # Delay to allow the network to update the nonce
+                  time.sleep(1)
+                except Exception as e:
+                    print(print(f"Transaction failed: {e}"))
+                    break
+
+
 
 
 main_script()
