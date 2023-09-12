@@ -1,3 +1,4 @@
+import math
 import pandas as pd
 import pn_helper as pn
 from web3 import Web3, HTTPProvider
@@ -30,8 +31,8 @@ def display_quest_menu():
 
 QUEST_ID = display_quest_menu()
 PROXY_CONTRACT_ADDRESS = '0x8166F6be09f1da50B41dD22509a4B7573C67cEA6'
-ENERGY_REQUIRED_PER_QUEST = 5  # As per the provided quest details
-DEBUG_TEST_FLAG = True
+ENERGY_REQUIRED_PER_QUEST = 10  # As per the provided quest details
+DEBUG_TEST_FLAG = False
 
 
 # Setup web3 references
@@ -106,9 +107,13 @@ def main_script():
             key = row['key']
 
             # Check energy balance before starting the quest
-            #energy_balance = pn.get_energy(address)
-            #energy_balance = get_current_energy(energy_contract, address)
-            number_of_quests = 1#energy_balance // ENERGY_REQUIRED_PER_QUEST
+            quest_energy_cost = ENERGY_REQUIRED_PER_QUEST
+            energy_balance = pn.get_energy(address)
+            number_of_quests = math.floor(energy_balance / quest_energy_cost)
+
+            if DEBUG_TEST_FLAG :
+              print(f"The energy balance is {energy_balance}\n\tand the quest costs {quest_energy_cost} energy to do\n\ttherefore we can do it {number_of_quests} times")
+              input()
 
             for _ in range(number_of_quests):
                 start_quest(quest_contract, address, key)
