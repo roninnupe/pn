@@ -96,8 +96,8 @@ def main():
     df.columns = df.columns.str.strip()
 
     # Initialize web3 and contract
-    web3 = pn.web3_Nova
-    contract = pn.contract_GameItems
+    web3 = pn.Web3Singleton.get_web3_Nova()
+    game_items_contract = pn.Web3Singleton.get_GameItems()
 
     # Set the recipient address(es) LFG    
     df_recipients = pd.read_csv(selected_recipients)
@@ -190,9 +190,9 @@ def main():
                     print("Press Enter to Continue...")
                     input()
                 
-                batch_transfer(web3, contract, recipient_address, operator_address, wallet_address, token_ids, amounts)
+                batch_transfer(web3, game_items_contract, recipient_address, operator_address, wallet_address, token_ids, amounts)
         else:
-            batch_transfer(web3, contract, recipient_address, operator_address, wallet_address, token_ids, amounts)
+            batch_transfer(web3, game_items_contract, recipient_address, operator_address, wallet_address, token_ids, amounts)
     
             delay_seconds = random.uniform(15.0, 35.0)
             print(f"Waiting for {delay_seconds:.2f} seconds...")            

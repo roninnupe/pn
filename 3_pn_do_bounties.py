@@ -122,7 +122,8 @@ def main():
     group_id = bounty_mappings_df.iloc[selected_index]['group_id']
 
     # Initialize web3 with the PN
-    web3 = pn.web3_Nova
+    web3 = pn.Web3Singleton.get_web3_Nova()
+    bounty_contract = pn.Web3Singleton.get_BountySystem()
 
     ended_bounties = 0
     started_bounties = 0
@@ -151,16 +152,16 @@ def main():
         # read the activeBounties for the address
         function_name = 'activeBountyIdsForAccount'
         function_args = [address]
-        result = pn.contract_BountySystem.functions[function_name](*function_args).call()
+        result = bounty_contract.functions[function_name](*function_args).call()
 
         print("Active Bounty IDs: ", result)
 
         if args.end:
             for active_bounty_id in result:
-                ended_bounties += end_bounty(web3, pn.contract_BountySystem, address, private_key, active_bounty_id)
+                ended_bounties += end_bounty(web3, bounty_contract, address, private_key, active_bounty_id)
 
         if args.start:
-            started_bounties += start_bounty(web3, pn.contract_BountySystem, address, private_key, bounty_id, pirates)
+            started_bounties += start_bounty(web3, bounty_contract, address, private_key, bounty_id, pirates)
 
         print("---------------------------------------------------------------------------")
 

@@ -6,7 +6,7 @@ import pandas as pd
 import pn_helper as pn
 
 # Initialize web3
-web3 = pn.web3_Nova
+web3 = pn.Web3Singleton.get_web3_Nova()
 chain_id = 42170
 
 import pandas as pd

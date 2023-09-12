@@ -84,10 +84,8 @@ def main():
     recipient_cycle = cycle(recipients)   
 
     # Initialize web3 stuff
-    url = pn.URL_PIRATE_NATION_GRAPH_API   
-    web3 = pn.web3_Nova
-    contract = pn.contract_PGLDToken
-
+    web3 = pn.Web3Singleton.get_web3_Nova()
+    PGLD_contract = pn.Web3Singleton.get_PGLDToken()
 
     for index, row in df_senders.iterrows():
 
@@ -122,8 +120,8 @@ def main():
 
                     print(f"We plan to move {pgld / X_PGLD_LONG} gold to: {current_recipient}")
                     if args.automate:
-                        transfer_PGLD(web3, contract, current_recipient, selected_operator, address, pgld)
-                        random_delay = random.uniform(4.5, 32.5)
+                        transfer_PGLD(web3, PGLD_contract, current_recipient, selected_operator, address, pgld)
+                        random_delay = random.uniform(1.5, 10.5)
                         print(f"\n\n...sleeping for {random_delay} seconds...\n\n")
                         time.sleep(random_delay)
 
@@ -132,7 +130,7 @@ def main():
                         if user_input.lower() == 'n':
                             print("Skipping...")
                         else:
-                            transfer_PGLD(web3, contract, current_recipient, selected_operator, address, pgld)                
+                            transfer_PGLD(web3, PGLD_contract, current_recipient, selected_operator, address, pgld)                
                 else:
                     print("No gold to move")
                     print("----------------------------------------------------------------------------------------------------------------------------------------")                    

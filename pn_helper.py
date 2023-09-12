@@ -115,12 +115,12 @@ class Web3Singleton:
 # NOTE: REFACTOR TO REMOVE THESE stored instance
 # Why because every instance using PN Helper will instantiate all these
 # Make those scripts hold local references to just the ones they need
-web3_Nova = Web3Singleton.get_web3_Nova()
-web3_NovaAlt = Web3Singleton.get_web3_NovaAlt()
-contract_EnergySystem = Web3Singleton.get_EnergySystem()
-contract_GameItems = Web3Singleton.get_GameItems()
-contract_PGLDToken = Web3Singleton.get_PGLDToken()
-contract_BountySystem = Web3Singleton.get_BountySystem()
+#web3_Nova = Web3Singleton.get_web3_Nova()
+#web3_NovaAlt = Web3Singleton.get_web3_NovaAlt()
+#contract_EnergySystem = Web3Singleton.get_EnergySystem()
+#contract_GameItems = Web3Singleton.get_GameItems()
+#contract_PGLDToken = Web3Singleton.get_PGLDToken()
+#contract_BountySystem = Web3Singleton.get_BountySystem()
 #contract_QuestSystem = Web3Singleton.get_QuestSystem()
 
 ######################################################
@@ -197,10 +197,10 @@ def usd_to_eth(usd_amount):
 
 # returns the Nova eth balance from an address
 def get_nova_eth_balance(address):
-    eth_balance_wei = web3_Nova.eth.get_balance(Web3.to_checksum_address(address.lower()))
+    eth_balance_wei = Web3Singleton.get_web3_Nova().eth.get_balance(Web3.to_checksum_address(address.lower()))
     if eth_balance_wei == 0 :
-        eth_balance_wei = web3_NovaAlt.eth.get_balance(Web3.to_checksum_address(address.lower()))
-    eth_balance_eth = float(web3_Nova.from_wei(eth_balance_wei, 'ether'))
+        eth_balance_wei = Web3Singleton.get_web3_NovaAlt().eth.get_balance(Web3.to_checksum_address(address.lower()))
+    eth_balance_eth = float(Web3Singleton.get_web3_Nova().from_wei(eth_balance_wei, 'ether'))
     return eth_balance_eth
 
 
@@ -209,7 +209,7 @@ def get_energy(address, long_form=False):
     pgld_amount = 0  # Replace with the actual PGLD amount
     function_name = 'getEnergy'
     function_args = [int(address,16)]
-    result = contract_EnergySystem.functions[function_name](*function_args).call()    
+    result = Web3Singleton.get_EnergySystem().functions[function_name](*function_args).call()    
     if long_form:
         return result
     else:
