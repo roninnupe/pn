@@ -1,11 +1,6 @@
 import argparse
-import random
-import time
 import pandas as pd
 import pn_helper as pn
-import json
-import requests
-from web3 import Web3, HTTPProvider
 from eth_utils import to_checksum_address
 
 # The query used to get all bounties from the PN Grpah
@@ -25,19 +20,6 @@ bounty_query = """
         }
       }
     }
-    """
-
-# A query to get all pirates that belong to a given address
-def make_pirate_query(address):
-    return f"""
-    {{
-      accounts(where: {{address: "{address.lower()}"}}){{
-        nfts(where:{{nftType: "pirate"}}){{
-            name
-            id
-        }}
-      }}
-    }}
     """
 
 # return the bounty hex from the bounty data, using the group_id specified, and fits the proper number of pirates
@@ -71,6 +53,7 @@ def get_bounty_hex(data, group_id, num_of_pirates):
     else:
         return None
 
+
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Example Argument Parser")
 
@@ -90,46 +73,10 @@ class TokenIdExceedsMaxValue(Exception):
         super().__init__(f"Token ID {token_id} exceeds the maximum value")
 
 
-def graph_id_to_entity(id_str: str) -> int:
-    address, token_id = id_str.split('-')
-    return token_to_entity(address, int(token_id))
-
-
-# Convert and address and entity to it's packed uInt256 variant
-def token_to_entity(address: str, token_id: int) -> int:
-    # Convert Ethereum address from hex string to integer
-    address_int = int(address, 16)
-
-    # Left shift the token_id by 160 bits to make space for the address
-    result = token_id << 160
-
-    # Combine the shifted token_id and address_int
-    packed_result = result | address_int
-
-    return packed_result
-
-# Convert and entity to it's address and token representation
-def entity_to_token(packed_result: int) -> (str, int):
-    # Mask to extract the least significant 160 bits (Ethereum address)
-    mask = (1 << 160) - 1
-
-    # Extract the address integer using the mask
-    address_int = packed_result & mask
-
-    # Convert the address integer to a hex string
-    address_str = hex(address_int).rstrip("L").lstrip("0x")  # Remove trailing 'L' (if exists) and leading '0x'
-
-    # Extract the token_id by right-shifting the packed_result by 160 bits
-    token_id = packed_result >> 160
-
-    print(f"0x{address_str} - {token_id}")
-
-    return ("0x" + address_str, token_id)  # Prefix the Ethereum address with '0x'
-
 # Return Pirates as Entities from an address
 def get_pirate_entities(address):
 
-    query = make_pirate_query(address)
+    query = pn.make_pirate_query(address)
     json_data = pn.get_data(query)
 
     pirate_entities = []
@@ -139,9 +86,10 @@ def get_pirate_entities(address):
             id_value = nft['id']
             name_value = nft['name']
             print(f"{name_value} present")
-            pirate_entities.append(graph_id_to_entity(id_value))
+            pirate_entities.append(pn.graph_id_to_entity(id_value))
 
     return pirate_entities
+
 
 def main():
     # pull arguments out for start and end
@@ -217,7 +165,6 @@ def main():
         print("---------------------------------------------------------------------------")
 
     print(f"claimed {ended_bounties} bounties and started {started_bounties} bounties")
-
 
 
 def start_bounty(web3, contract_to_write, address, private_key, bounty_id, pirates):

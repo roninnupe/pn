@@ -30,6 +30,9 @@ _abi_URL_PGLD = "https://api-nova.arbiscan.io/api?module=contract&action=getabi&
 _contract_BountySystem_addr = "0xE6FDcF808cD795446b3520Be6487917E9B82339a"
 _abi_URL_BountySystem = "https://api-nova.arbiscan.io/api?module=contract&action=getabi&address=0x13A2C5f0fF0Afd50278f78a48dcE94e656187cf2"
 
+_contract_QuestSystem_addr = "0x093aE1c7F34E7219674031F16eBbEB6a0c4F8d97"
+_abi_URL_QuestSystem = "https://api-nova.arbiscan.io/api?module=contract&action=getabi&address=0x4C685581069be5586Ecdb5E8554387C0fCe0dA57"
+
 def get_abi_from_url(abi_url):
     try:
         # Make an HTTP GET request to fetch the ABI
@@ -52,6 +55,7 @@ def get_abi_from_url(abi_url):
         print(f"Error: {str(e)}")
         return None
 
+
 class Web3Singleton:
     _web3_Nova = None
     _web3_NovaAlt = None
@@ -59,6 +63,7 @@ class Web3Singleton:
     _GameItems = None  
     _PGLDToken = None
     _BountySystem = None
+    _QuestSystem = None
 
     @classmethod
     def get_web3_Nova(cls):
@@ -98,14 +103,25 @@ class Web3Singleton:
         if cls._BountySystem is None:
             web3_Nova = cls.get_web3_Nova()
             cls._BountySystem = web3_Nova.eth.contract(address=_contract_BountySystem_addr, abi=get_abi_from_url(_abi_URL_BountySystem))
-        return cls._BountySystem           
+        return cls._BountySystem          
 
+    @classmethod
+    def get_QuestSystem(cls):
+        if cls._QuestSystem is None:
+            web3_Nova = cls.get_web3_Nova()
+            cls._QuestSystem = web3_Nova.eth.contract(address=_contract_QuestSystem_addr, abi=get_abi_from_url(_abi_URL_QuestSystem))
+        return cls._QuestSystem      
+
+# NOTE: REFACTOR TO REMOVE THESE stored instance
+# Why because every instance using PN Helper will instantiate all these
+# Make those scripts hold local references to just the ones they need
 web3_Nova = Web3Singleton.get_web3_Nova()
 web3_NovaAlt = Web3Singleton.get_web3_NovaAlt()
 contract_EnergySystem = Web3Singleton.get_EnergySystem()
 contract_GameItems = Web3Singleton.get_GameItems()
 contract_PGLDToken = Web3Singleton.get_PGLDToken()
 contract_BountySystem = Web3Singleton.get_BountySystem()
+#contract_QuestSystem = Web3Singleton.get_QuestSystem()
 
 ######################################################
 # HELPER FUNCTIONS
@@ -119,16 +135,19 @@ def data_path(filename) :
         print(f"Error in data_path: {str(e)}")
         return filename
 
+
 # gets the JSON data from a query to the pirate nation graph
 def get_data(query):
     response = requests.post(URL_PIRATE_NATION_GRAPH_API, json={'query': query})
     return response.json()
 
+
 # read addresses from a file path passed in stripping funny characters, etc
 def read_addresses(file_path):
     with open(file_path, 'r') as f:
         return [line.strip().lower() for line in f]
-    
+
+
 # takes a iterable of addresses and returns it in the string format of [Address1, Address2, ... AddressX]
 def format_addresses_for_query(addresses):
     # form addresses into a comma string with spaces
@@ -136,6 +155,7 @@ def format_addresses_for_query(addresses):
 
     # wrap that comma string of addresses into brackets
     return f"[{comma_str_addresses}]"   
+
 
 # gets the Eth to USD conversion
 def get_eth_to_usd_price():
@@ -150,7 +170,8 @@ def get_eth_to_usd_price():
     except requests.exceptions.RequestException as e:
         print("Error making API request:", e)
         return None
-    
+
+
 # gets real time conversion of a USD amount to Eth    
 def usd_to_eth(usd_amount):
     try:
@@ -172,7 +193,8 @@ def usd_to_eth(usd_amount):
     except requests.exceptions.RequestException as e:
         print(f"Error: {e}")
         return None
-    
+
+
 # returns the Nova eth balance from an address
 def get_nova_eth_balance(address):
     eth_balance_wei = web3_Nova.eth.get_balance(Web3.to_checksum_address(address.lower()))
@@ -180,6 +202,7 @@ def get_nova_eth_balance(address):
         eth_balance_wei = web3_NovaAlt.eth.get_balance(Web3.to_checksum_address(address.lower()))
     eth_balance_eth = float(web3_Nova.from_wei(eth_balance_wei, 'ether'))
     return eth_balance_eth
+
 
 def get_energy(address, long_form=False):
     # Replace this with your logic to get PGLD for the address
@@ -192,6 +215,7 @@ def get_energy(address, long_form=False):
     else:
         return round((result /  10 ** 18), 0)  
 
+
 # Global variable to store the address to key mapping
 _address_key_mapping = None
 
@@ -201,6 +225,7 @@ def load_address_key_mapping(csv_file):
     df['address_lower'] = df['address'].str.lower()
     _address_key_mapping = df.set_index('address_lower')['key'].to_dict()
 
+# Finds a key for a specific address from the key mapping
 def find_key_for_address(target_address):
     global address_key_mapping
     if _address_key_mapping is None:
@@ -210,3 +235,61 @@ def find_key_for_address(target_address):
     if target_address_lower in _address_key_mapping:
         return _address_key_mapping[target_address_lower]
     return None
+
+
+# Converts a graphID into just it's token ID and discards the address
+def graph_id_to_tokenId(id_str: str) -> int:
+    address, token_id = id_str.split('-')
+    return int(token_id)
+
+
+# Converts a graphID into it's entity ID
+def graph_id_to_entity(id_str: str) -> int:
+    address, token_id = id_str.split('-')
+    return token_to_entity(address, int(token_id))
+
+
+# Convert and address and entity to it's packed uInt256 variant
+def token_to_entity(address: str, token_id: int) -> int:
+    # Convert Ethereum address from hex string to integer
+    address_int = int(address, 16)
+
+    # Left shift the token_id by 160 bits to make space for the address
+    result = token_id << 160
+
+    # Combine the shifted token_id and address_int
+    packed_result = result | address_int
+
+    return packed_result
+
+
+# Convert and entity to it's address and token representation
+def entity_to_token(packed_result: int) -> (str, int):
+    # Mask to extract the least significant 160 bits (Ethereum address)
+    mask = (1 << 160) - 1
+
+    # Extract the address integer using the mask
+    address_int = packed_result & mask
+
+    # Convert the address integer to a hex string
+    address_str = hex(address_int).rstrip("L").lstrip("0x")  # Remove trailing 'L' (if exists) and leading '0x'
+
+    # Extract the token_id by right-shifting the packed_result by 160 bits
+    token_id = packed_result >> 160
+
+    print(f"0x{address_str} - {token_id}")
+
+    return ("0x" + address_str, token_id)  # Prefix the Ethereum address with '0x'
+
+# A query to get all pirates that belong to a given address
+def make_pirate_query(address):
+    return f"""
+    {{
+      accounts(where: {{address: "{address.lower()}"}}){{
+        nfts(where:{{nftType: "pirate"}}){{
+            name
+            id
+        }}
+      }}
+    }}
+    """
