@@ -150,23 +150,33 @@ def transfer_PGLD(web3, contract, recipient, operator, sender, pgld_amount):
         'gasPrice': web3.eth.gas_price,
         'data': contract.encodeABI(fn_name='transferFrom', args=[wallet_address, recipient_address, pgld_amount])
         } 
+
+    try:                  
+
+        # Estimate the gas for this specific transaction
+        txn_dict['gas'] = web3.eth.estimate_gas(txn_dict)
                     
-    # Estimate the gas for this specific transaction
-    txn_dict['gas'] = web3.eth.estimate_gas(txn_dict)
+        # Sign the transaction using your private key
+        private_key = pn.find_key_for_address(operator)
+        signed_txn = web3.eth.account.sign_transaction(txn_dict, private_key=private_key)
                     
-    # Sign the transaction using your private key
-    private_key = pn.find_key_for_address(operator)
-    signed_txn = web3.eth.account.sign_transaction(txn_dict, private_key=private_key)
+        # Send the transaction
+        txn_hash = web3.eth.send_raw_transaction(signed_txn.rawTransaction)
+        print('Transaction hash:', txn_hash.hex())  # This will give you the transaction hash
                     
-    # Send the transaction
-    txn_hash = web3.eth.send_raw_transaction(signed_txn.rawTransaction)
-    print('Transaction hash:', txn_hash.hex())  # This will give you the transaction hash
+        # Wait for the transaction to be mined, and get the transaction receipt
+        txn_receipt = web3.eth.wait_for_transaction_receipt(txn_hash)
                     
-    # Wait for the transaction to be mined, and get the transaction receipt
-    txn_receipt = web3.eth.wait_for_transaction_receipt(txn_hash)
-                    
-    print(f"Transfer completed from {sender} to {recipient}")
-    print("----------------------------------------------------------------------------------------------------------------------------------------")            
+        print(f"Transfer completed from {sender} to {recipient}")
+
+    except Exception as e:
+        print("  **Error with transferring PGLD transaction:", e)
+
+    print("----------------------------------------------------------------------------------------------------------------------------------------")   
+
+
+
+
 
 if __name__ == "__main__":
     main()    
