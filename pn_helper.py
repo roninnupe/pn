@@ -172,27 +172,19 @@ def get_eth_to_usd_price():
         return None
 
 
-# gets real time conversion of a USD amount to Eth    
-def usd_to_eth(usd_amount):
-    try:
-        # Make a GET request to the CoinCap API
-        response = requests.get(URL_COINCAP_API)
-        response.raise_for_status()  # Raise an exception if the request was not successful
+# Calculate the equivalent amount in ETH
+def usd_to_eth(usd_amount, round_result=False):
+    eth_amount = usd_amount / get_eth_to_usd_price()
+    if round_result : 
+        eth_amount = round(eth_amount, 6)
+    return eth_amount
 
-        # Parse the JSON response
-        data = response.json()
-
-        # Extract the current ETH price in USD
-        eth_price_usd = float(data['data']['priceUsd'])
-
-        # Calculate the equivalent amount in ETH
-        eth_amount = usd_amount / eth_price_usd
-
-        return eth_amount
-
-    except requests.exceptions.RequestException as e:
-        print(f"Error: {e}")
-        return None
+# Calculate the equlvalent amount in USD
+def eth_to_usd(eth_amount, round_result=True):
+    usd_amount = eth_amount * get_eth_to_usd_price()
+    if round_result : 
+        usd_amount = round(usd_amount, 2)
+    return usd_amount
 
 
 # returns the Nova eth balance from an address

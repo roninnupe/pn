@@ -46,7 +46,8 @@ def select_row_from_csv(csv_file):
 print("\nPlease select the wallet you wish to distribute Eth from:\n")
 
 # Get input from user on the wallet we want to send money from
-selected_wallet, your_address, private_key = select_row_from_csv('../pn data/addresses.csv')
+selected_wallet, your_address, private_key = select_row_from_csv(pn.data_path("addresses.csv"))
+your_address = Web3.to_checksum_address(your_address.lower())
 
 # Load the CSV file into a DataFrame
 file_path = pn.data_path("eth_recipient_addresses.csv")
@@ -55,12 +56,21 @@ df = pd.read_csv(file_path)
 # Extract the 'address' column as a list
 recipient_addresses = df['address'].tolist()
 
+# Get your eth_balance and USD estimate of the wallet sending
+your_eth_balance = pn.get_nova_eth_balance(your_address)
+your_nova_usd_estimate = pn.eth_to_usd(your_eth_balance)
+
 # get the number of recipients for display purposes
 recipient_count = len(recipient_addresses)
 
 # Amount to send (in Ether)
-amount_in_USD = float(input(f"Enter the amount of USD to send to {recipient_count} wallets: $"))
-amount_in_eth = pn.usd_to_eth(amount_in_USD)
+print(f"You have {your_eth_balance} eth (~${your_nova_usd_estimate} USD)")
+user_input = input(f"\tenter the amount of USD (or EQUAL) to send to {recipient_count} wallets: $")
+if user_input.upper() == "EQUAL" :
+    amount_in_eth = (your_eth_balance / (recipient_count + 1 )) - pn.usd_to_eth(0.005)
+else:
+    amount_in_USD = float(user_input)
+    amount_in_eth = pn.usd_to_eth(amount_in_USD)
 amount_in_wei = web3.to_wei(amount_in_eth, 'ether')
 
 print(f"About to distribute {amount_in_eth} x {recipient_count} = {amount_in_eth * recipient_count}")
@@ -78,9 +88,9 @@ for recipient in recipient_addresses:
     # Build the transaction
     transaction = {
         'from': your_address,
-        'to': recipient,
+        'to': Web3.to_checksum_address(recipient.lower()),
         'value': amount_in_wei,
-        'gasPrice': web3.to_wei('50', 'gwei'),
+        'gasPrice': web3.eth.gas_price,
         'nonce': nonce,
         'chainId': chain_id,
     }
