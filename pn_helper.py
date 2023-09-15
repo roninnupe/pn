@@ -281,6 +281,13 @@ def make_pirate_query(address):
         nfts(where:{{nftType: "pirate"}}){{
             name
             id
+            tokenId
+            traits {{ 
+                value
+                metadata {{
+                    name
+                }}
+            }}            
         }}
       }}
     }}
