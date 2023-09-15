@@ -31,10 +31,29 @@ def display_quest_menu():
             print("Invalid input. Please enter a valid quest ID.")
 
 QUEST_ID = display_quest_menu()
+QUEST_NAME = quest_menu.get(QUEST_ID, "Quest Not Found")
 PROXY_CONTRACT_ADDRESS = '0x8166F6be09f1da50B41dD22509a4B7573C67cEA6'
-ENERGY_REQUIRED_PER_QUEST = 10  # As per the provided quest details
 DEBUG_TEST_FLAG = False
 
+# Fetch the quest data using fetch_quest_data() from pn_helper
+quest_data = pn.fetch_quest_data()
+chosen_quest = next((quest for quest in quest_data["data"]["quests"] if quest["id"] == str(QUEST_ID)), None)
+
+# From the chosen quest, we extract all non-zero energy requirements.
+# This step is important to ignore any quest data responses or parts that don't any require energy LOL
+if chosen_quest:
+    # Fetch the first non-zero value
+    non_zero_energies = [int(input["energyRequired"]) for input in chosen_quest["inputs"] if
+                         int(input["energyRequired"]) > 0]
+
+    # If there's at least one non-zero energy requirement, use the first one
+    if non_zero_energies:
+        ENERGY_REQUIRED_PER_QUEST_UNFORMATTED = non_zero_energies[0]
+        ENERGY_REQUIRED_PER_QUEST = round((ENERGY_REQUIRED_PER_QUEST_UNFORMATTED / 10 ** 18), 0)
+    else:
+        raise Exception("No non-zero energy requirement found for the chosen quest.")
+else:
+    raise Exception("Chosen quest not found in fetched data.")
 
 # Setup web3 references
 web3 = pn.Web3Singleton.get_web3_Nova()
@@ -104,8 +123,11 @@ def start_quest(contract, address, key):
 
 
 def main_script():
-    with open(pn.data_path("Addresses.csv"), mode='r') as file:
+    with open(pn.data_path("addresses.csv"), mode='r') as file:
         csv_reader = csv.DictReader(file)
+
+        total_quest_count = 0
+
         for row in csv_reader:
             wallet_id = row['wallet']
             address = row['address']
@@ -116,12 +138,18 @@ def main_script():
             energy_balance = pn.get_energy(address)
             number_of_quests = math.floor(energy_balance / quest_energy_cost)
 
+            if number_of_quests == 0 : 
+                print(f"{wallet_id}", end='...', flush=True)
+                continue
+            
+            print(f"\nSo far we have done {QUEST_NAME} {total_quest_count} times")
             print(f"{wallet_id} - The energy balance is {energy_balance} and the quest costs {quest_energy_cost} energy to do, therefore we can do it {number_of_quests} times")
 
             for _ in range(number_of_quests):
                 try:
                   print(f"{wallet_id} ({int(energy_balance)}/150) - ", end='', flush=True)
                   start_quest(quest_contract, address, key)
+                  total_quest_count += 1
                   energy_balance -= quest_energy_cost
                   time.sleep(1)
                 except Exception as e:

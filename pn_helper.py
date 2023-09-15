@@ -293,6 +293,21 @@ def make_pirate_query(address):
     }}
     """
 
+
+def fetch_quest_data():
+    query = f"""
+    {{
+      quests {{
+        id
+        inputs {{
+          energyRequired
+        }}
+      }}
+    }}
+    """
+    return get_data(query)
+
+
 def send_web3_transaction(web3, private_key, txn_dict):
     # Estimate the gas for this specific transaction
     txn_dict['gas'] = web3.eth.estimate_gas(txn_dict)
