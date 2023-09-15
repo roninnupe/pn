@@ -110,7 +110,7 @@ def main():
 
     #specify a list of token_ids to not try and send. currently it's just soulbound tokens
     # note:81 is cutlass - skipping this for now
-    skip_token_ids = [80,81,100,101,102]
+    skip_token_ids = [80,100,101,102]
 
     # Iterate over rows in the dataframe
     for index, row in df.iterrows():
