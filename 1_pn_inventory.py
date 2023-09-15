@@ -142,7 +142,7 @@ def excel_sheet(json_string, ordered_addresses):
 
     # Convert DataFrame to Excel
     # Versions of Pandas >= 1.3.0:
-    file_name = pn.data_path('pn_inventory.xlsx')
+    file_name = "pn_inventory.xlsx"
     xlWriter = pd.ExcelWriter(file_name,engine='xlsxwriter',engine_kwargs={'options': {'strings_to_numbers': True}})
 
     # Export to Excel
