@@ -176,6 +176,8 @@ def excel_sheet(json_string, ordered_addresses):
     xlWriter._save()
 
     # Also export to a same directory the csv to be stored in github
+    sums_df = pd.DataFrame([[None, None] + column_sums], columns=df.columns)
+    df = df._append(sums_df, ignore_index=True)
     df.to_csv("pn_inventory.csv", index=False)
 
 def main():
