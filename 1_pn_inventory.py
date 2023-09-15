@@ -145,8 +145,9 @@ def excel_sheet(json_string, ordered_addresses):
     file_name = "pn_inventory.xlsx"
     xlWriter = pd.ExcelWriter(file_name,engine='xlsxwriter',engine_kwargs={'options': {'strings_to_numbers': True}})
 
-    # Export to Excel
+    # Export to Excel and CSV - note: I am wrting directly to the same script directory to store in 
     df.to_excel(xlWriter, index=False)
+    df.to_csv("pn_inventory.csv", index=False)
 
     # Get the xlsxwriter workbook and worksheet objects
     workbook  = xlWriter.book
