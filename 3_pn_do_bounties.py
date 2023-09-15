@@ -63,6 +63,10 @@ def parse_arguments():
     parser.add_argument("--skip_start_bounties", dest="start", action="store_false", default=True,
                         help="Flag to skip startBounty")
 
+    # Add skip_level_30 argument
+    parser.add_argument("--skip_level_30", dest="skip_level_30", action="store_false", default=True,
+                        help="Flag to skip items with level 30")
+
     args = parser.parse_args()
     return args
 
@@ -74,7 +78,7 @@ class TokenIdExceedsMaxValue(Exception):
 
 
 # Return Pirates as Entities from an address
-def get_pirate_entities(address):
+def get_pirate_entities(address, skip_level_30):
 
     query = pn.make_pirate_query(address)
     json_data = pn.get_data(query)
@@ -85,8 +89,21 @@ def get_pirate_entities(address):
         for nft in account['nfts']:
             id_value = nft['id']
             name_value = nft['name']
+
+            # Extract level value
+            level_value = None
+
+            for trait in nft['traits']:
+                if trait['metadata']['name'] == 'level':
+                    level_value = int(trait['value'])
+                    break            
+
             print(f"{name_value} present")
-            pirate_entities.append(pn.graph_id_to_entity(id_value))
+
+            if level_value == 30 and skip_level_30:
+                print(f"Skipping {name_value} because it's level 30!!!!!!!!!!!!!!!!")
+            else:
+                pirate_entities.append(pn.graph_id_to_entity(id_value))
 
     return pirate_entities
 
@@ -96,6 +113,7 @@ def main():
     args = parse_arguments()
     print("endBounty:", args.end)
     print("startBounty:", args.start)
+    print("skip_level_30:", args.skip_level_30)
     print()
 
     # Load data from addresses.csv
@@ -140,10 +158,16 @@ def main():
         print(f"Executing Bounties on {wallet} - {address}")
 
         # grab all the pirates in the wallet as their entity format
-        pirates = get_pirate_entities(address)
+        pirates = get_pirate_entities(address, args.skip_level_30)
+
+        # if no pirates to send, don't continue on with the remaining logic in this part of the loop
+        num_of_pirates = len(pirates)
+        if num_of_pirates == 0: 
+            print("---------------------------------------------------------------------------")
+            continue
 
         #get the appropriate bounty id hex
-        hex_value = get_bounty_hex(bounty_data, group_id, len(pirates))
+        hex_value = get_bounty_hex(bounty_data, group_id, num_of_pirates)
 
         # Convert hexadecimal string to base 10 integer
         # FYI, This is the bounty ID for the user-selected bounty_name
