@@ -9,11 +9,11 @@ import csv
 token_contract = Web3.to_checksum_address("0x5b0661b61b0e947e7e49ce7a67abaf8eaafcdc1a")
 
 quest_menu = {
-    1: "Swab the Decks",
+    #1: "Swab the Decks",
     2: "Load Cargo",
-    3: "Chop Wood",
-    4: "Harvest Cotton",
-    5: "Mine Iron",
+    #3: "Chop Wood",
+    #4: "Harvest Cotton",
+    #5: "Mine Iron",
     19: "Chop More Wood",
     20: "Harvest More Cotton",
     21: "Mine More Iron"
@@ -115,11 +115,22 @@ def start_quest(contract, address, key):
 
     signed_txn = web3.eth.account.sign_transaction(txn, private_key=key)
     txn_hash = web3.eth.send_raw_transaction(signed_txn.rawTransaction)
-
-    if DEBUG_TEST_FLAG :
-      print(txn_hash)
+    time.sleep(1)
+    txn_reciept = web3.eth.get_transaction_receipt(txn_hash)
     
     print(f"Transaction hash for address {address}: {txn_hash.hex()}")
+
+    if DEBUG_TEST_FLAG :
+      print(txn_reciept)
+      input()
+
+    if txn_reciept is None:
+        return "Pending"  # Transaction is still pending
+
+    if txn_reciept["status"] == 1:
+        return "Successful"  # Transaction was successful
+    else:
+        return "Failed"  # Transaction failed
 
 
 def main_script():
@@ -147,11 +158,13 @@ def main_script():
 
             for _ in range(number_of_quests):
                 try:
-                  print(f"{wallet_id} ({int(energy_balance)}/150) - ", end='', flush=True)
-                  start_quest(quest_contract, address, key)
-                  total_quest_count += 1
-                  energy_balance -= quest_energy_cost
-                  time.sleep(1)
+                    print(f"{wallet_id} ({int(energy_balance)}/150) - ", end='', flush=True)
+                    if start_quest(quest_contract, address, key) is "Successful": 
+                        total_quest_count += 1
+                        energy_balance -= quest_energy_cost
+                    else:
+                        print("**There was an issue with the transaction failing, so we aren't continuing on this wallet")
+                        break
                 except Exception as e:
                   print(print(f"Transaction failed: {e}"))
                   break
