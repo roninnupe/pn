@@ -16,6 +16,7 @@ URL_COINCAP_API = "https://api.coincap.io/v2/assets/ethereum"
 URL_ARB_NOVA_RPC = "https://nova.arbitrum.io/rpc"
 URL_ARB_NOVA_RPC_ALT = "https://arb1.arbitrum.io/rpc"
 URL_PIRATE_NATION_GRAPH_API = "https://subgraph.satsuma-prod.com/208eb2825ebd/proofofplay/pn-nova/api"
+NOVA_CHAIN_ID = 42170
 
 # contract addresses and their respective URL to JSON formats of their ABIs
 _contract_EnergySystem_addr = "0x26DcA20a55AB5D38B2F39E6798CDBee87A5c983D"
@@ -189,9 +190,9 @@ def eth_to_usd(eth_amount, round_result=True):
 
 # returns the Nova eth balance from an address
 def get_nova_eth_balance(address):
-    eth_balance_wei = Web3Singleton.get_web3_Nova().eth.get_balance(Web3.to_checksum_address(address.lower()))
+    eth_balance_wei = Web3Singleton.get_web3_Nova().eth.get_balance(to_web3_address(address))
     if eth_balance_wei == 0 :
-        eth_balance_wei = Web3Singleton.get_web3_NovaAlt().eth.get_balance(Web3.to_checksum_address(address.lower()))
+        eth_balance_wei = Web3Singleton.get_web3_NovaAlt().eth.get_balance(to_web3_address(address))
     eth_balance_eth = float(Web3Singleton.get_web3_Nova().from_wei(eth_balance_wei, 'ether'))
     return eth_balance_eth
 
@@ -307,12 +308,16 @@ def fetch_quest_data():
     """
     return get_data(query)
 
+# makes sure to properly format address to checksum lowercase variant
+def to_web3_address(address):
+    return Web3.to_checksum_address(address.lower())
+
 
 def send_web3_transaction(web3, private_key, txn_dict):
     # Estimate the gas for this specific transaction
     txn_dict['gas'] = web3.eth.estimate_gas(txn_dict)
 
-    print(f"Gas: {txn_dict['gas']}")
+    #print(f"Gas: {txn_dict['gas']}")
 
     signed_txn = web3.eth.account.sign_transaction(txn_dict, private_key=private_key)
 
@@ -324,3 +329,49 @@ def send_web3_transaction(web3, private_key, txn_dict):
     txn_receipt = web3.eth.wait_for_transaction_receipt(txn_hash)
 
     return txn_receipt
+
+
+def send_nova_eth(sender, recipient, amount_in_eth, private_key, subtract_gas=False):
+    web3 = Web3Singleton.get_web3_Nova()
+
+    # Calculate gas costs based on gas price and gas limit
+    gas_price = web3.eth.gas_price
+    gas_limit = 30000  # You can adjust this based on your needs
+    gas_cost = gas_price * gas_limit
+
+    # Convert the amount_in_eth to wei
+    amount_in_wei = web3.to_wei(amount_in_eth, 'ether')
+
+    if subtract_gas:
+        # Calculate the total amount to send, deducting gas costs
+        print(f"Subtracting {gas_cost} from {amount_in_wei}")
+        amount_in_wei -= gas_cost
+        print(f"New amount: {amount_in_wei}")
+
+    # Format the addresses to proper web3 format
+    sender_addr = to_web3_address(sender)
+    recipient_addr = to_web3_address(recipient)
+
+    if(sender_addr == recipient_addr) :
+        print(f"Skipping: Sender and Recipient Address is the same {sender_addr}")
+        return None
+
+    nonce = web3.eth.get_transaction_count(sender_addr, 'latest')
+
+    # Build the transaction
+    txn_dict = {
+        'from': sender_addr,
+        'to': recipient_addr,
+        'value': amount_in_wei,
+        'gasPrice': gas_price,
+        'nonce': nonce,
+        'gas': gas_limit,
+        'chainId': NOVA_CHAIN_ID,
+    }
+
+    # Send the transaction
+    try:
+        return send_web3_transaction(web3, private_key, txn_dict)
+    except Exception as e:
+        print(f"Transaction failed: {e}")
+        return None

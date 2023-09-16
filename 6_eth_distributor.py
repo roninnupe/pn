@@ -1,14 +1,8 @@
 import csv
 import requests
-from web3 import Web3
 import time
 import pandas as pd
 import pn_helper as pn
-
-# Initialize web3
-web3 = pn.Web3Singleton.get_web3_Nova()
-chain_id = 42170
-
 import pandas as pd
 
 def select_row_from_csv(csv_file):
@@ -47,7 +41,6 @@ print("\nPlease select the wallet you wish to distribute Eth from:\n")
 
 # Get input from user on the wallet we want to send money from
 selected_wallet, your_address, private_key = select_row_from_csv(pn.data_path("addresses.csv"))
-your_address = Web3.to_checksum_address(your_address.lower())
 
 # Load the CSV file into a DataFrame
 file_path = pn.data_path("eth_recipient_addresses.csv")
@@ -67,13 +60,15 @@ recipient_count = len(recipient_addresses)
 print(f"You have {your_eth_balance} eth (~${your_nova_usd_estimate} USD)")
 user_input = input(f"\tenter the amount of USD (or EQUAL) to send to {recipient_count} wallets: $")
 if user_input.upper() == "EQUAL" :
-    amount_in_eth = (your_eth_balance / (recipient_count + 1 )) - pn.usd_to_eth(0.005)
+    amount_in_eth = (your_eth_balance / (recipient_count + 1 ))
+    amount_in_USD = pn.eth_to_usd(amount_in_eth)
+    subtract_gas = True
 else:
     amount_in_USD = float(user_input)
     amount_in_eth = pn.usd_to_eth(amount_in_USD)
-amount_in_wei = web3.to_wei(amount_in_eth, 'ether')
+    subtract_gas = False
 
-print(f"About to distribute {amount_in_eth} x {recipient_count} = {amount_in_eth * recipient_count}")
+print(f"About to distribute {amount_in_eth} (${amount_in_USD}) x {recipient_count} = {amount_in_eth * recipient_count}")
 user_input = input("Do you want to proceed? (y/n): ").strip().lower()
 if user_input != "y": 
     if user_input != "n": print("Terminating script. You must explicitly enter y to proceed")
@@ -82,36 +77,7 @@ if user_input != "y":
 
 # Main loop to send transactions
 for recipient in recipient_addresses:
-    # Get the current nonce
-    nonce = web3.eth.get_transaction_count(your_address, 'latest')
-
-    # Build the transaction
-    transaction = {
-        'from': your_address,
-        'to': Web3.to_checksum_address(recipient.lower()),
-        'value': amount_in_wei,
-        'gasPrice': web3.eth.gas_price,
-        'nonce': nonce,
-        'chainId': chain_id,
-    }
-
-    # Estimate gas
-    try:
-        estimated_gas = web3.eth.estimate_gas(transaction)
-        transaction['gas'] = estimated_gas
-    except Exception as e:
-        print(f"Error estimating gas: {e}")
-        continue
-
-    # Sign the transaction
-    signed_transaction = web3.eth.account.sign_transaction(transaction, private_key)
-
-    # Send the transaction
-    try:
-        transaction_hash = web3.eth.send_raw_transaction(signed_transaction.rawTransaction)
-        print(f"Transaction sent successfully! Transaction hash: {web3.to_hex(transaction_hash)}")
-    except Exception as e:
-        print(f"Transaction failed: {e}")
-
+    # Send the eth
+    pn.send_nova_eth(your_address, recipient, amount_in_eth, private_key, subtract_gas)
     # Delay to allow the network to update the nonce
     time.sleep(1)
