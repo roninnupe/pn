@@ -2,6 +2,7 @@ import math
 import time
 import pandas as pd
 import pn_helper as pn
+from itertools import cycle
 from web3 import Web3, HTTPProvider
 from eth_utils import to_checksum_address
 import csv
@@ -19,41 +20,40 @@ quest_menu = {
     21: "Mine More Iron"
 }
 
+quest_data = pn.fetch_quest_data()
+chosen_quests = []
+
 def display_quest_menu():
+    quest_counter = 0
+
     while True:
-        print("Select a quest ID:")
+        print("Select a quest ID (leave blank to exit):")
         for quest_id, quest_name in quest_menu.items():
             print(f"{quest_id} - {quest_name}")
         user_input = input("Enter the quest ID: ")
         if user_input.isdigit() and int(user_input) in quest_menu:
-            return int(user_input)
+            quest_id = int(user_input)
+            quest_name = quest_menu.get(quest_id, "Quest Not Found")
+            chosen_quest = next((quest for quest in quest_data["data"]["quests"] if quest["id"] == str(quest_id)), None)
+            chosen_quest['name'] = quest_name
+            energy_required = int(chosen_quest['inputs'][0]['energyRequired'])
+            chosen_quest['energy'] = round((energy_required / 10 ** 18), 0)
+            chosen_quest['count'] = 0
+            chosen_quests.append(chosen_quest)
+            quest_counter += 1
+            print(f"{quest_name} chosen in slot {quest_counter}")
+        elif user_input.strip() == "":
+            return 
         else:
             print("Invalid input. Please enter a valid quest ID.")
 
-QUEST_ID = display_quest_menu()
-QUEST_NAME = quest_menu.get(QUEST_ID, "Quest Not Found")
+
+display_quest_menu()
+quest_cycle = cycle(chosen_quests)
+
+
 PROXY_CONTRACT_ADDRESS = '0x8166F6be09f1da50B41dD22509a4B7573C67cEA6'
 DEBUG_TEST_FLAG = False
-
-# Fetch the quest data using fetch_quest_data() from pn_helper
-quest_data = pn.fetch_quest_data()
-chosen_quest = next((quest for quest in quest_data["data"]["quests"] if quest["id"] == str(QUEST_ID)), None)
-
-# From the chosen quest, we extract all non-zero energy requirements.
-# This step is important to ignore any quest data responses or parts that don't any require energy LOL
-if chosen_quest:
-    # Fetch the first non-zero value
-    non_zero_energies = [int(input["energyRequired"]) for input in chosen_quest["inputs"] if
-                         int(input["energyRequired"]) > 0]
-
-    # If there's at least one non-zero energy requirement, use the first one
-    if non_zero_energies:
-        ENERGY_REQUIRED_PER_QUEST_UNFORMATTED = non_zero_energies[0]
-        ENERGY_REQUIRED_PER_QUEST = round((ENERGY_REQUIRED_PER_QUEST_UNFORMATTED / 10 ** 18), 0)
-    else:
-        raise Exception("No non-zero energy requirement found for the chosen quest.")
-else:
-    raise Exception("Chosen quest not found in fetched data.")
 
 # Setup web3 references
 web3 = pn.Web3Singleton.get_web3_Nova()
@@ -76,7 +76,7 @@ def get_pirate_id(address):
 
 
 # Starts the quest for 
-def start_quest(contract, address, key):
+def start_quest(contract, address, key, quest_id):
     """Start the quest."""
     # 1. Get the graph ID for the provided address
     graph_id = get_pirate_id(address)
@@ -86,7 +86,7 @@ def start_quest(contract, address, key):
 
     # 3. Use the token ID in the quest_params_data
     quest_params_data = {
-        'questId': QUEST_ID,
+        'questId': int(quest_id),
         'inputs': [
             {
                 'tokenType': 2,
@@ -137,30 +137,31 @@ def main_script():
     with open(pn.data_path("addresses.csv"), mode='r') as file:
         csv_reader = csv.DictReader(file)
 
-        total_quest_count = 0
-
         for row in csv_reader:
             wallet_id = row['wallet']
             address = row['address']
             key = row['key']
 
+            chosen_quest = next(quest_cycle)
+
             # Check energy balance before starting the quest
-            quest_energy_cost = ENERGY_REQUIRED_PER_QUEST
+            quest_energy_cost = chosen_quest['energy']
             energy_balance = pn.get_energy(address)
             number_of_quests = math.floor(energy_balance / quest_energy_cost)
 
-            if number_of_quests == 0 : 
+            # sometimes wallets are throwing issue with 1 quest and not sure why, so I'm going to pass on a wallet if there's only enough energy to do 1 quest
+            if number_of_quests < 2 : 
                 print(f"{wallet_id}", end='...', flush=True)
                 continue
             
-            print(f"\nSo far we have done {QUEST_NAME} {total_quest_count} times")
+            print(f"\nSo far we have done {chosen_quest['name']} {chosen_quest['count']} times")
             print(f"{wallet_id} - The energy balance is {energy_balance} and the quest costs {quest_energy_cost} energy to do, therefore we can do it {number_of_quests} times")
 
             for _ in range(number_of_quests):
                 try:
                     print(f"{wallet_id} ({int(energy_balance)}/150) - ", end='', flush=True)
-                    if start_quest(quest_contract, address, key) is "Successful": 
-                        total_quest_count += 1
+                    if start_quest(quest_contract, address, key, chosen_quest['id']) == "Successful": 
+                        chosen_quest['count'] += 1
                         energy_balance -= quest_energy_cost
                     else:
                         print("**There was an issue with the transaction failing, so we aren't continuing on this wallet")
