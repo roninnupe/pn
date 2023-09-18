@@ -1,66 +1,35 @@
-import csv
-import requests
 import time
 import pandas as pd
 import pn_helper as pn
 import pandas as pd
+from termcolor import colored
 
-def select_row_from_csv(csv_file):
-    try:
-        # Load the CSV file into a DataFrame
-        df = pd.read_csv(csv_file)
+GAS_LIMIT = 50000
 
-        # Display the available wallets
-        print("Available wallets:")
-        print(df[['wallet', 'address']].to_string(index=False))
+# Get the sender address from the file (will default with no input if only one sender in file)
+sender_choice_file = pn.data_path("addresses.csv")
+sender_data = pn.select_wallet(sender_choice_file)
+sender_addr = sender_data['address']
+sender_key = sender_data['key']
 
-        # Ask the user to enter the wallet value
-        selected_wallet = int(input("Enter wallet #: "))
-
-        # Check if the input wallet value is in the DataFrame
-        if selected_wallet in df['wallet'].tolist():
-            # Find the corresponding row for the selected wallet
-            selected_row = df[df['wallet'] == selected_wallet].iloc[0]
-
-            # Retrieve the information from the selected row
-            selected_wallet = selected_row['wallet']
-            selected_address = selected_row['address']
-            selected_key = selected_row['key']
-
-            print(f"Selected Wallet: {selected_wallet}")
-            print(f"Selected Address: {selected_address}")
-
-            # Return the selected information
-            return selected_wallet, selected_address, selected_key
-        else:
-            return None  # Wallet not found in the DataFrame
-    except FileNotFoundError:
-        return None  # File not found
-
-print("\nPlease select the wallet you wish to distribute Eth from:\n")
-
-# Get input from user on the wallet we want to send money from
-selected_wallet, your_address, private_key = select_row_from_csv(pn.data_path("addresses.csv"))
-
-# Load the CSV file into a DataFrame
+# Load up the recipient addresses
 file_path = pn.data_path("eth_recipient_addresses.csv")
 df = pd.read_csv(file_path)
-
-# Extract the 'address' column as a list
 recipient_addresses = df['address'].tolist()
-
-# Get your eth_balance and USD estimate of the wallet sending
-your_eth_balance = pn.get_nova_eth_balance(your_address)
-your_nova_usd_estimate = pn.eth_to_usd(your_eth_balance)
-
-# get the number of recipients for display purposes
 recipient_count = len(recipient_addresses)
 
+# Get sender eth_balance and USD estimate of the wallet sending
+sender_eth_balance = pn.get_nova_eth_balance(sender_addr)
+sender_nova_usd_estimate = pn.eth_to_usd(sender_eth_balance)
+
+total_sent_eth = 0
+total_gas_cost_eth = 0
+
 # Amount to send (in Ether)
-print(f"You have {your_eth_balance} eth (~${your_nova_usd_estimate} USD)")
+print(f"You have {sender_eth_balance} eth (~${sender_nova_usd_estimate} USD)")
 user_input = input(f"\tenter the amount of USD (or EQUAL) to send to {recipient_count} wallets: $")
 if user_input.upper() == "EQUAL" :
-    amount_in_eth = (your_eth_balance / (recipient_count + 1 ))
+    amount_in_eth = (sender_eth_balance / (recipient_count + 1 ))
     amount_in_USD = pn.eth_to_usd(amount_in_eth)
     subtract_gas = True
 else:
@@ -68,7 +37,7 @@ else:
     amount_in_eth = pn.usd_to_eth(amount_in_USD)
     subtract_gas = False
 
-print(f"About to distribute {amount_in_eth} (${amount_in_USD}) x {recipient_count} = {amount_in_eth * recipient_count}")
+print(f"About to distribute {amount_in_eth} (${amount_in_USD}) x {recipient_count} = {amount_in_eth * recipient_count} with a Gas Limit of {GAS_LIMIT}")
 user_input = input("Do you want to proceed? (y/n): ").strip().lower()
 if user_input != "y": 
     if user_input != "n": print("Terminating script. You must explicitly enter y to proceed")
@@ -77,7 +46,26 @@ if user_input != "y":
 
 # Main loop to send transactions
 for recipient in recipient_addresses:
-    # Send the eth
-    pn.send_nova_eth(your_address, recipient, amount_in_eth, private_key, subtract_gas)
+    # Estimate gas cost; you'll have to adjust this if your send_nova_eth function returns the actual gas cost
+    gas_price = pn.Web3Singleton.get_web3_Nova().eth.gas_price
+    gas_cost_in_eth = (gas_price * GAS_LIMIT) / 1e18
+    total_gas_cost_eth += gas_cost_in_eth
+
+    pn.send_nova_eth(sender_addr, recipient, amount_in_eth, sender_key, GAS_LIMIT, subtract_gas)
+    total_sent_eth += amount_in_eth
+
     # Delay to allow the network to update the nonce
     time.sleep(1)
+
+# Convert totals to readable formats
+total_sent_eth = total_sent_eth
+total_gas_cost_eth = pn.Web3Singleton.get_web3_Nova.from_wei(total_gas_cost_eth, 'ether')
+total_dollar_value_sent = pn.eth_to_usd(float(total_sent_eth))
+total_dollar_value_gas = pn.eth_to_usd(float(total_gas_cost_eth))
+
+# Summary
+print(colored("\nSummary:", 'yellow', attrs=['bold']))
+print(colored("---------------------------------------------------", 'yellow'))
+print(colored(f"Total ETH Sent: {total_sent_eth:.18f} ETH (${total_dollar_value_sent} USD)", 'green', attrs=['bold']))
+print(colored(f"Total Gas Cost: {total_gas_cost_eth:.18f} ETH (${total_dollar_value_gas} USD)", 'red'))
+print(colored("---------------------------------------------------", 'yellow'))

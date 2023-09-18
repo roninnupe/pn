@@ -211,9 +211,16 @@ def get_energy(address, long_form=False):
 
 # Global variable to store the address to key mapping
 _address_key_mapping = None
+_address_file_name = None
 
-def load_address_key_mapping(csv_file):
+def load_address_key_mapping(csv_file, reload=False):
     global _address_key_mapping
+    global _address_file_name
+
+    # do not bother loading up again if we are trying to load the same file, and not override
+    if _address_file_name == csv_file and reload == False :
+        return
+
     df = pd.read_csv(csv_file)
     df['address_lower'] = df['address'].str.lower()
     _address_key_mapping = df.set_index('address_lower')['key'].to_dict()
@@ -331,12 +338,11 @@ def send_web3_transaction(web3, private_key, txn_dict):
     return txn_receipt
 
 
-def send_nova_eth(sender, recipient, amount_in_eth, private_key, subtract_gas=False):
+def send_nova_eth(sender, recipient, amount_in_eth, private_key, gas_limit=30000, subtract_gas=False):
     web3 = Web3Singleton.get_web3_Nova()
 
     # Calculate gas costs based on gas price and gas limit
     gas_price = web3.eth.gas_price
-    gas_limit = 30000  # You can adjust this based on your needs
     gas_cost = gas_price * gas_limit
 
     # Convert the amount_in_eth to wei
@@ -375,3 +381,52 @@ def send_nova_eth(sender, recipient, amount_in_eth, private_key, subtract_gas=Fa
     except Exception as e:
         print(f"Transaction failed: {e}")
         return None
+    
+# Selects a wallet from a CSV returns the name, address, and key associated with the wallet
+# if there is only one address in the csv file, it returns the data instantly 
+# if there is multiple addresses in the file it prompts the user to choose one
+def select_wallet(csv_file):
+
+    try:
+        df = pd.read_csv(csv_file)
+
+        if df.shape[0] == 1: 
+            selected_row = df.iloc[0]
+            wallet_data = {
+                'name' : selected_row.get('wallet', ''),
+                'address' : selected_row.get('address', ''),
+                'key' : selected_row.get('key', '')   
+            }
+
+            return wallet_data    
+
+        print("\nPlease select a wallet:\n")
+
+        # Display the available wallets
+        print("Available wallets:")
+        print(df[['wallet', 'address']].to_string(index=False))
+
+        # Ask the user to enter the wallet value
+        selected_wallet = int(input("Enter wallet #: "))
+
+        # Check if the input wallet value is in the DataFrame
+        if selected_wallet in df['wallet'].tolist():
+            # Find the corresponding row for the selected wallet
+            selected_row = df[df['wallet'] == selected_wallet].iloc[0]
+
+            # Retrieve the information from the selected row
+            wallet_data = {
+                'name' : selected_row.get('wallet', ''),
+                'address' : selected_row.get('address', ''),
+                'key' : selected_row.get('key', '')   
+            }
+
+            print(f"Selected Wallet: {wallet_data['name']}")
+            print(f"Selected Address: {wallet_data['address']}")
+
+            # Return the selected information
+            return wallet_data
+        else:
+            return None  # Wallet not found in the DataFrame
+    except FileNotFoundError:
+        return None  # File not found    
