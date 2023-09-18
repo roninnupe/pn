@@ -34,6 +34,8 @@ _abi_URL_BountySystem = "https://api-nova.arbiscan.io/api?module=contract&action
 _contract_QuestSystem_addr = "0x8166F6be09f1da50B41dD22509a4B7573C67cEA6"
 _abi_URL_QuestSystem = "https://api-nova.arbiscan.io/api?module=contract&action=getabi&address=0x2Fe3Ece0153b404Ea73F045B88ec6528B60f1384"
 
+_contract_PirateNFT_addr = "0x5b0661b61b0e947e7e49ce7a67abaf8eaafcdc1a"
+
 def get_abi_from_url(abi_url):
     try:
         # Make an HTTP GET request to fetch the ABI
@@ -262,6 +264,10 @@ def token_to_entity(address: str, token_id: int) -> int:
 
     return packed_result
 
+# helper function to get a pirate tokenID and turn it into the entity 
+def pirate_token_id_to_entity(token_id:int, address=_contract_PirateNFT_addr):
+    return token_to_entity(_contract_PirateNFT_addr, token_id)
+
 
 # Convert and entity to it's address and token representation
 def entity_to_token(packed_result: int) -> (str, int):
@@ -381,6 +387,21 @@ def send_nova_eth(sender, recipient, amount_in_eth, private_key, gas_limit=30000
     except Exception as e:
         print(f"Transaction failed: {e}")
         return None
+    
+
+# returns a list of pirate IDs associated with their account as a list of integer values
+def get_pirate_ids(address):
+    query = make_pirate_query(address)
+    json_data = get_data(query)
+
+    pirate_ids = [
+        int(nft['tokenId'])
+        for account in json_data['data']['accounts']
+        for nft in account.get('nfts', [])  # Use .get() to handle the case where 'nfts' is missing
+    ]
+
+    return pirate_ids
+
     
 # Selects a wallet from a CSV returns the name, address, and key associated with the wallet
 # if there is only one address in the csv file, it returns the data instantly 

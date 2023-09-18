@@ -22,6 +22,75 @@ bounty_query = """
     }
     """
 
+class BountyMappings:
+    _instance = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(BountyMappings, cls).__new__(cls)
+            cls._instance.__initialized = False
+        return cls._instance
+
+    def initialize(self):
+        if not self.__initialized:
+            self.__initialized = True
+            self.df = pd.read_csv(pn.data_path("bounty_group_mappings.csv"))
+
+    def get_mappings_df(self):
+        self.initialize()
+        return self.df
+    
+_bounty_mappings = BountyMappings()
+
+def get_group_id_by_bounty_name(target_bounty_name):
+
+    try:
+        bounty_mappings_df = _bounty_mappings.get_mappings_df()
+
+        # Filter the DataFrame for the specified bounty_name
+        result = bounty_mappings_df[bounty_mappings_df['bounty_name'] == target_bounty_name]
+
+        # Check if any rows match the specified bounty_name
+        if not result.empty:
+            # Get the group_id from the first matching row (assuming unique bounty names)
+            group_id = result.iloc[0]['group_id']
+            return group_id
+        else:
+            return None  # No matching bounty_name found
+    except Exception as e:
+        print(f"An error occurred: {str(e)}")
+        return None
+
+class PirateBountyMappings:
+    _instance = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(PirateBountyMappings, cls).__new__(cls)
+            cls._instance.__initialized = False
+        return cls._instance
+
+    def initialize(self):
+        if not self.__initialized:
+            self.__initialized = True
+            self.df = pd.read_csv(pn.data_path("pn_pirates.csv"))
+
+    def get_mappings_df(self):
+        self.initialize()
+        return self.df
+    
+_pirate_bounty_mappings = PirateBountyMappings()
+
+def get_bounty_for_token_id(token_id):
+    pirate_bounty_df = _pirate_bounty_mappings.get_mappings_df()
+
+    matching_row = pirate_bounty_df[pirate_bounty_df['tokenId'] == token_id]
+    
+    if not matching_row.empty:
+        return matching_row.iloc[0]['Bounty']
+    else:
+        return None  # Token ID not found in the DataFrame
+
 # return the bounty hex from the bounty data, using the group_id specified, and fits the proper number of pirates
 def get_bounty_hex(data, group_id, num_of_pirates):
 
@@ -62,10 +131,6 @@ def parse_arguments():
 
     parser.add_argument("--skip_start_bounties", dest="start", action="store_false", default=True,
                         help="Flag to skip startBounty")
-
-    # Add skip_level_30 argument
-    parser.add_argument("--skip_level_30", dest="skip_level_30", action="store_false", default=True,
-                        help="Flag to skip items with level 30")
 
     args = parser.parse_args()
     return args
@@ -113,31 +178,15 @@ def main():
     args = parse_arguments()
     print("endBounty:", args.end)
     print("startBounty:", args.start)
-    print("skip_level_30:", args.skip_level_30)
     print()
 
     # Load data from addresses.csv
-    df = pd.read_csv(pn.data_path("addresses.csv"))
+    df_addressses = pd.read_csv(pn.data_path("addresses.csv"))
 
-    # Load data from bounty_mappings.csv
-    bounty_mappings_df = pd.read_csv(pn.data_path("bounty_group_mappings.csv"))
-
-    # Display available bounties to the user
-    print("Available bounties:")
-    for index, row in bounty_mappings_df.iterrows():
-        print(f"{index + 1}. {row['bounty_name']}")
-
-    # Get user input for the bounty they are interested in
-    selected_index = int(input("Please enter the number corresponding to the bounty you're interested in: ")) - 1
-
-    # Validate user input
-    if selected_index < 0 or selected_index >= len(bounty_mappings_df):
-        print("Invalid selection. Exiting.")
-        exit()
-
-    # Find the corresponding hex value for the selected bounty_name
-    selected_bounty_name = bounty_mappings_df.iloc[selected_index]['bounty_name']
-    group_id = bounty_mappings_df.iloc[selected_index]['group_id']
+    # Display available bounties to the user only if we have start flag set
+    if args.start:
+        default_group_id = get_default_bounty_group_id()
+        print(f"default_group_id: {default_group_id}")
 
     # Initialize web3 with the PN
     web3 = pn.Web3Singleton.get_web3_Nova()
@@ -150,28 +199,12 @@ def main():
     bounty_data = pn.get_data(bounty_query)
 
     print("---------------------------------------------------------------------------")
-    for index, row in df.iterrows():
+    for index, row in df_addressses.iterrows():
         wallet = row['wallet']
         address = row['address']
         private_key = row['key']
 
         print(f"Executing Bounties on {wallet} - {address}")
-
-        # grab all the pirates in the wallet as their entity format
-        pirates = get_pirate_entities(address, args.skip_level_30)
-
-        # if no pirates to send, don't continue on with the remaining logic in this part of the loop
-        num_of_pirates = len(pirates)
-        if num_of_pirates == 0: 
-            print("---------------------------------------------------------------------------")
-            continue
-
-        #get the appropriate bounty id hex
-        hex_value = get_bounty_hex(bounty_data, group_id, num_of_pirates)
-
-        # Convert hexadecimal string to base 10 integer
-        # FYI, This is the bounty ID for the user-selected bounty_name
-        bounty_id = int(hex_value, 16)
 
         # read the activeBounties for the address
         function_name = 'activeBountyIdsForAccount'
@@ -180,16 +213,85 @@ def main():
 
         print("Active Bounty IDs: ", result)
 
+        # handle ending of bounties if we have the end flag set
         if args.end:
             for active_bounty_id in result:
-                ended_bounties += end_bounty(web3, bounty_contract, address, private_key, active_bounty_id)
+                ended_bounties += end_bounty(web3, bounty_contract, address, private_key, active_bounty_id)        
 
-        if args.start:
-            started_bounties += start_bounty(web3, bounty_contract, address, private_key, bounty_id, pirates)
 
-        print("---------------------------------------------------------------------------")
+        # if we don't have start bounties set then continue and skip all the remaining code below
+        if not args.start:
+            continue
+
+        # load up all the pirate IDs per address
+        pirate_ids = pn.get_pirate_ids(address)
+
+        print(f"Wallet {wallet} has the following pirates: {pirate_ids}")
+        input()
+
+        bounties_to_execute = {} # initialize a dictionary of bounties and pirates we want to execute
+
+        # Loop through the pirate_ids and load up bounties_to_execute
+        for pirate_id in pirate_ids:
+            bounty_name = get_bounty_for_token_id(pirate_id)
+            bounty_group_id = get_group_id_by_bounty_name(bounty_name)
+            
+            # use the default group_id if we don't find one, and only if we have specified a default group_id
+            if bounty_group_id is None:
+                if default_group_id is None:
+                    continue
+                else: 
+                    bounty_group_id = default_group_id
+            
+            # Check if the bounty_group_id is already in the dictionary, if not, create an empty list
+            if bounty_group_id not in bounties_to_execute:
+                bounties_to_execute[bounty_group_id] = []
+
+            # Append the pirate_id to the list associated with the bounty_group_id
+            bounties_to_execute[bounty_group_id].append(pn.pirate_token_id_to_entity(pirate_id))
+
+            print(f"Pirate ID: {pirate_id}, Bounty Name: {bounty_name}, Group ID: {bounty_group_id}")
+
+        # Now loop over bounties to execute and execute them
+        for group_id, entity_ids in bounties_to_execute.items():   
+        # if no pirates to send, don't continue on with the remaining logic in this part of the loop
+            num_of_pirates = len(entity_ids)
+            if num_of_pirates == 0: 
+                print("---------------------------------------------------------------------------")
+                continue
+
+            hex_value = get_bounty_hex(bounty_data, group_id, num_of_pirates)
+            
+            # Convert hexadecimal string to base 10 integer
+            # FYI, This is the bounty ID for the user-selected bounty_name
+            bounty_id = int(hex_value, 16)   
+
+            started_bounties += start_bounty(web3, bounty_contract, address, private_key, bounty_id, entity_ids) 
+            print("---------------------------------------------------------------------------")
 
     print(f"claimed {ended_bounties} bounties and started {started_bounties} bounties")
+
+#Prompts the user to choose a bounty, and returns the respective group id
+def get_default_bounty_group_id():
+
+    print("Available bounties:")
+    
+    bounty_mappings_df = _bounty_mappings.get_mappings_df()
+    
+    for index, row in bounty_mappings_df.iterrows():
+        print(f"{index + 1}. {row['bounty_name']}")
+
+    # Get user input for the bounty they are interested in
+    selected_index = int(input("Please enter the number corresponding to the default bounty you're interested in: ")) - 1
+
+    # Validate user input
+    if selected_index < 0 or selected_index >= len(bounty_mappings_df):
+       return None
+    
+    # Find the corresponding hex value for the selected bounty_name
+    selected_bounty_name = bounty_mappings_df.iloc[selected_index]['bounty_name']
+    group_id = bounty_mappings_df.iloc[selected_index]['group_id']
+    return group_id
 
 
 def start_bounty(web3, contract_to_write, address, private_key, bounty_id, pirates):
