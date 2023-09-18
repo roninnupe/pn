@@ -22,9 +22,6 @@ recipient_count = len(recipient_addresses)
 sender_eth_balance = pn.get_nova_eth_balance(sender_addr)
 sender_nova_usd_estimate = pn.eth_to_usd(sender_eth_balance)
 
-total_sent_eth = 0
-total_gas_cost_eth = 0
-
 # Amount to send (in Ether)
 print(f"You have {sender_eth_balance} eth (~${sender_nova_usd_estimate} USD)")
 user_input = input(f"\tenter the amount of USD (or EQUAL) to send to {recipient_count} wallets: $")
@@ -44,6 +41,9 @@ if user_input != "y":
     else: print("Okay, no Eth will be sent! Have a great day")
     exit()
 
+total_sent_eth = 0
+total_gas_cost_eth = 0
+
 # Main loop to send transactions
 for recipient in recipient_addresses:
     # Estimate gas cost; you'll have to adjust this if your send_nova_eth function returns the actual gas cost
@@ -59,7 +59,6 @@ for recipient in recipient_addresses:
 
 # Convert totals to readable formats
 total_sent_eth = total_sent_eth
-total_gas_cost_eth = pn.Web3Singleton.get_web3_Nova.from_wei(total_gas_cost_eth, 'ether')
 total_dollar_value_sent = pn.eth_to_usd(float(total_sent_eth))
 total_dollar_value_gas = pn.eth_to_usd(float(total_gas_cost_eth))
 

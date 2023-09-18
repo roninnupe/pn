@@ -2,6 +2,8 @@ import pandas as pd
 import pn_helper as pn
 from termcolor import colored
 
+GAS_LIMIT = 50000
+
 # Get the recipient address from the file (will default with no input if only one recipient in file)
 recipient_choice_file = pn.data_path("addresses.csv")
 recipient_data = pn.select_wallet(recipient_choice_file)
@@ -14,8 +16,6 @@ df = pd.read_csv(collection_addresses_file)
 total_sent_eth = 0
 total_gas_cost_eth = 0
 
-input()
-
 for index, row in df.iterrows():
     sender_name = row['wallet']
     sender_address = row['address']
@@ -25,8 +25,7 @@ for index, row in df.iterrows():
 
     # Estimate gas cost; you'll have to adjust this if your send_nova_eth function returns the actual gas cost
     gas_price = pn.Web3Singleton.get_web3_Nova().eth.gas_price
-    gas_limit = 40000
-    gas_cost_in_eth = (gas_price * gas_limit) / 1e18
+    gas_cost_in_eth = (gas_price * GAS_LIMIT) / 1e18
     total_gas_cost_eth += gas_cost_in_eth
 
     if (amount_in_eth > 0.00001):
@@ -37,7 +36,7 @@ for index, row in df.iterrows():
         print(colored(f"To Address  : {recipient_addr}", 'white', attrs=['bold']))
         print(colored(f"Amount      : {amount_in_eth:.18f} ETH", 'white', 'on_grey'))
         print(colored(f"Gas Cost    : {gas_cost_in_eth:.18f} ETH", 'white'))
-        pn.send_nova_eth(sender_address, recipient_addr, amount_in_eth, sender_pk, gas_limit, True)
+        pn.send_nova_eth(sender_address, recipient_addr, amount_in_eth, sender_pk, GAS_LIMIT, True)
         print(colored("---------------------------------------------------", 'cyan'))
         print()  # Empty line for clarity
 
