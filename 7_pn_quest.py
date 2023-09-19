@@ -2,58 +2,131 @@ import math
 import time
 import pandas as pd
 import pn_helper as pn
-from itertools import cycle
 from web3 import Web3, HTTPProvider
 from eth_utils import to_checksum_address
 import csv
+from termcolor import colored
+import questionary
+from questionary import Choice
+from pygments.token import Token
+from prompt_toolkit.styles import Style
+from termcolor import colored
+from itertools import cycle
+
+
 
 token_contract = Web3.to_checksum_address("0x5b0661b61b0e947e7e49ce7a67abaf8eaafcdc1a")
 
+custom_style = Style.from_dict({
+    'questionmark': '#E91E63 bold',
+    'selected': '#673AB7 bold',
+    'pointer': '#673AB7 bold',
+    'answer': '#2196F3 bold',
+    'question': 'cyan bold',
+})
+
 quest_menu = {
-    #1: "Swab the Decks",
-    2: "Load Cargo",
-    #3: "Chop Wood",
-    #4: "Harvest Cotton",
-    #5: "Mine Iron",
-    19: "Chop More Wood",
-    20: "Harvest More Cotton",
-    21: "Mine More Iron"
+    2: "📦 Load Cargo",
+    19: "🪓 Chop More Wood",
+    20: "🌾 Harvest More Cotton",
+    21: "⛏️ Mine More Iron",
+    99: "🚪 Exit"
 }
 
-quest_data = pn.fetch_quest_data()
+quest_colors = {
+    "📦 Load Cargo": "\033[93m",          # Light Blue
+    "🪓 Chop More Wood": "\033[95m",     # Light Purple
+    "🌾 Harvest More Cotton": "\033[96m", # Light Cyan
+    "⛏️ Mine More Iron": "\033[97m"      # White
+}
+
+# Color Constants for CLI
+C_RED = "\033[91m"
+C_GREEN = "\033[92m"
+C_YELLOW = "\033[93m"
+C_BLUE = "\033[94m"
+C_MAGENTA = "\033[95m"
+C_CYAN = "\033[96m"
+C_END = '\033[0m'  # Reset to the default color
+C_YELLOWLIGHT = "\033[33m"
+
 chosen_quests = []
 
 def display_quest_menu():
-    quest_counter = 0
+    # ASCII Banner
+    print(colored("  ##############################", 'cyan'))
+    print(colored("  #                            #", 'cyan'))
+    print(colored("  #", 'cyan') + "🏴‍☠️" + colored("PIRATE QUEST MENU ", 'red') + "🏴‍☠️" + colored("#", 'cyan'))
+    print(colored("  #                            #", 'cyan'))
+    print(colored("  ##############################", 'cyan'))
 
+    print(colored("\n🏴‍☠️ Ahoy, matey!", 'yellow', attrs=['bold']))
+    print(colored("Choose your quest and set sail on the high seas! 🌊⚓", 'yellow', attrs=['bold']))
+    print("\n")
+
+    # Fetch the quest data
+    quest_data = pn.fetch_quest_data()
+    chosen_quests_local = []
     while True:
-        print("Select a quest ID (leave blank to exit):")
-        for quest_id, quest_name in quest_menu.items():
-            print(f"{quest_id} - {quest_name}")
-        user_input = input("Enter the quest ID: ")
-        if user_input.isdigit() and int(user_input) in quest_menu:
-            quest_id = int(user_input)
-            quest_name = quest_menu.get(quest_id, "Quest Not Found")
-            chosen_quest = next((quest for quest in quest_data["data"]["quests"] if quest["id"] == str(quest_id)), None)
-            chosen_quest['name'] = quest_name
-            energy_required = int(chosen_quest['inputs'][0]['energyRequired'])
-            chosen_quest['energy'] = round((energy_required / 10 ** 18), 0)
-            chosen_quest['count'] = 0
-            chosen_quests.append(chosen_quest)
-            quest_counter += 1
-            print(f"{quest_name} chosen in slot {quest_counter}")
-        elif user_input.strip() == "":
-            return 
-        else:
-            print("Invalid input. Please enter a valid quest ID.")
+        questions = [
+            {
+                'type': 'select',
+                'name': 'quest',
+                'message': 'Select a quest (Choose "Exit" when done):',
+                'choices': [Choice(title=quest_name, value=quest_id) for quest_id, quest_name in quest_menu.items()]
+            }
+        ]
+
+        answers = questionary.prompt(questions, style=custom_style)
+        chosen_quest_id = int(answers['quest'])
+
+        if chosen_quest_id == 99:
+            break
+
+        # Extract chosen quest details and append to the list
+        quest_name = quest_menu.get(chosen_quest_id, "Quest Not Found")
+        chosen_quest = next((quest for quest in quest_data["data"]["quests"] if quest["id"] == str(chosen_quest_id)),
+                            None)
+        chosen_quest['name'] = quest_name
+        energy_required = int(chosen_quest['inputs'][0]['energyRequired'])
+        chosen_quest['energy'] = round((energy_required / 10 ** 18), 0)
+        chosen_quest['count'] = 0
+        chosen_quests_local.append(chosen_quest)
+
+    return chosen_quests_local
 
 
-display_quest_menu()
-quest_cycle = cycle(chosen_quests)
 
 
 PROXY_CONTRACT_ADDRESS = '0x8166F6be09f1da50B41dD22509a4B7573C67cEA6'
 DEBUG_TEST_FLAG = False
+
+# Fetch the quest data using fetch_quest_data() from pn_helper
+quest_data = pn.fetch_quest_data()
+chosen_quests = display_quest_menu()
+quest_cycle = cycle(chosen_quests)
+
+
+# From the chosen quest, we extract all non-zero energy requirements.
+# This step is important to ignore any quest data responses or parts that don't any require energy LOL
+# This dictionary will hold the energy required for each quest
+energy_required_per_quest = {}
+
+for quest in chosen_quests:
+    # Fetch the first non-zero value
+    non_zero_energies = [int(input["energyRequired"]) for input in quest["inputs"] if int(input["energyRequired"]) > 0]
+
+    # If there's at least one non-zero energy requirement, use the first one
+    if non_zero_energies:
+        ENERGY_REQUIRED_PER_QUEST_UNFORMATTED = non_zero_energies[0]
+        energy_required = round((ENERGY_REQUIRED_PER_QUEST_UNFORMATTED / 10 ** 18), 0)
+        energy_required_per_quest[quest['id']] = energy_required
+    else:
+        raise Exception(f"No non-zero energy requirement found for the quest {quest['name']}.")
+
+if not energy_required_per_quest:
+    raise Exception("No chosen quests found in fetched data.")
+
 
 # Setup web3 references
 web3 = pn.Web3Singleton.get_web3_Nova()
@@ -62,7 +135,6 @@ energy_contract = pn.Web3Singleton.get_EnergySystem()
 
 
 def get_pirate_id(address):
-
     global id_value
 
     query = pn.make_pirate_query(address)
@@ -75,8 +147,8 @@ def get_pirate_id(address):
     return id_value
 
 
-# Starts the quest for 
-def start_quest(contract, address, key, quest_id):
+# Starts the quest for
+def start_quest(contract, address, key, quest):
     """Start the quest."""
     # 1. Get the graph ID for the provided address
     graph_id = get_pirate_id(address)
@@ -86,7 +158,7 @@ def start_quest(contract, address, key, quest_id):
 
     # 3. Use the token ID in the quest_params_data
     quest_params_data = {
-        'questId': int(quest_id),
+        'questId': int(quest['id']),
         'inputs': [
             {
                 'tokenType': 2,
@@ -96,18 +168,13 @@ def start_quest(contract, address, key, quest_id):
             }
         ]
     }
-    # Estimating the gas
-    #gas_estimate = contract.functions.startQuest((quest_params_data['questId'], quest_params_data['inputs'])).estimate_gas()
 
-    if DEBUG_TEST_FLAG :
-      print("address: ", address)
-      print("graph_id: ", graph_id)
-      print("token_id: ", token_id)
-      print(quest_params_data)
-      input()
+    quest_params_data['inputs'] = [
+        (input_data['tokenType'], input_data['tokenContract'], input_data['tokenId'], input_data['amount']) for
+        input_data in quest_params_data['inputs']]
 
     txn = contract.functions.startQuest((quest_params_data['questId'], quest_params_data['inputs'])).build_transaction({
-        'chainId': 42170,  # Replace with your chainId
+        'chainId': 42170,
         'gas': 950000,
         'gasPrice': web3.eth.gas_price,
         'nonce': web3.eth.get_transaction_count(address),
@@ -117,24 +184,18 @@ def start_quest(contract, address, key, quest_id):
     txn_hash = web3.eth.send_raw_transaction(signed_txn.rawTransaction)
     time.sleep(1)
     txn_reciept = web3.eth.get_transaction_receipt(txn_hash)
-    
-    print(f"Transaction hash for address {address}: {txn_hash.hex()}")
-
-    if DEBUG_TEST_FLAG :
-      print(txn_reciept)
-      input()
 
     if txn_reciept is None:
-        return "Pending"  # Transaction is still pending
+        return txn_hash, "Pending"  # Transaction is still pending
 
     if txn_reciept["status"] == 1:
-        return "Successful"  # Transaction was successful
+        return txn_hash, "Successful"  # Transaction was successful
     else:
-        return "Failed"  # Transaction failed
+        return txn_hash, "Failed"  # Transaction failed
 
 
 def main_script():
-    with open(pn.data_path("addresses.csv"), mode='r') as file:
+    with open(pn.data_path("addresses_with_pk.csv"), mode='r') as file:
         csv_reader = csv.DictReader(file)
 
         for row in csv_reader:
@@ -142,35 +203,31 @@ def main_script():
             address = row['address']
             key = row['key']
 
-            chosen_quest = next(quest_cycle)
+            print(f"{C_BLUE}---------------------- Wallet {wallet_id} ----------------------{C_END}")
 
-            # Check energy balance before starting the quest
-            quest_energy_cost = chosen_quest['energy']
-            energy_balance = pn.get_energy(address)
-            number_of_quests = math.floor(energy_balance / quest_energy_cost)
+            initial_energy_balance = pn.get_energy(address)
+            print(f"Initial energy balance: {C_YELLOWLIGHT}{initial_energy_balance}{C_END}")
 
-            # sometimes wallets are throwing issue with 1 quest and not sure why, so I'm going to pass on a wallet if there's only enough energy to do 1 quest
-            if number_of_quests < 2 : 
-                print(f"{wallet_id}", end='...', flush=True)
-                continue
-            
-            print(f"\nSo far we have done {chosen_quest['name']} {chosen_quest['count']} times")
-            print(f"{wallet_id} - The energy balance is {energy_balance} and the quest costs {quest_energy_cost} energy to do, therefore we can do it {number_of_quests} times")
+            for chosen_quest in chosen_quests:
+                quest_energy_cost = chosen_quest['energy']
+                if initial_energy_balance < quest_energy_cost:
+                    print(f"Energy insufficient for quest {chosen_quest['name']}. Moving to next quest or wallet.")
+                    continue
 
-            for _ in range(number_of_quests):
-                try:
-                    print(f"{wallet_id} ({int(energy_balance)}/150) - ", end='', flush=True)
-                    if start_quest(quest_contract, address, key, chosen_quest['id']) == "Successful": 
-                        chosen_quest['count'] += 1
-                        energy_balance -= quest_energy_cost
-                    else:
-                        print("**There was an issue with the transaction failing, so we aren't continuing on this wallet")
-                        break
-                except Exception as e:
-                  print(print(f"Transaction failed: {e}"))
-                  break
+                print(f"    {quest_colors[chosen_quest['name']]}{chosen_quest['name']}{C_END}")
+                txn_hash, status = start_quest(quest_contract, address, key, chosen_quest)
+                if status == "Successful": 
+                    print(f"        Transaction {status}: {C_GREEN}:{txn_hash.hex()}{C_END}")
+                else:
+                    print(f"        Transaction {status}: {C_RED}:{txn_hash.hex()}{C_END}")
+                    break # adding failsafe to break if a transaction failrs
 
+                initial_energy_balance -= quest_energy_cost
+                print(f"        Remaining energy: {C_CYAN}{initial_energy_balance}{C_END}")
 
+            print(f"\nTotal Remaining energy for wallet {wallet_id}: {C_CYAN}{initial_energy_balance}{C_END}")
+            print(f"{C_BLUE}-------------------------------------------------------{C_END}")
 
 
 main_script()
+
