@@ -1,6 +1,8 @@
 # pn_helper.py
 # https://docs.piratenation.game/important/contracts
 
+import os
+import questionary
 import json
 import requests
 import pandas as pd
@@ -451,3 +453,40 @@ def select_wallet(csv_file):
             return None  # Wallet not found in the DataFrame
     except FileNotFoundError:
         return None  # File not found    
+    
+
+# Function to list .csv files in a directory
+def list_csv_files(path):
+    csv_files = [f for f in os.listdir(path) if f.endswith(".csv")]
+    return csv_files
+
+
+# Function to display a menu and select a .csv file
+def _select_csv_file(csv_files):
+    choices = [{"name": file} for file in csv_files]
+    questions = [
+        questionary.select(
+            "Select a .csv file:",
+            choices=choices,
+        ).ask()
+    ]
+
+    if questions[0] is not None:
+        return questions[0]
+    else:
+        return None
+
+def select_csv_file():
+    directory_path = data_path("")
+
+    # List .csv files in the directory
+    csv_files = list_csv_files(directory_path)
+
+    if not csv_files:
+        print("No .csv files found in the specified directory.")
+        return None
+    else:
+        # Display and select a .csv file using the menu
+        selected_csv_file = _select_csv_file(csv_files)
+        print(f"You selected: {selected_csv_file}")
+        return data_path(selected_csv_file)

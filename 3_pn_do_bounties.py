@@ -1,4 +1,6 @@
 import argparse
+import time
+import questionary
 import pandas as pd
 import pn_helper as pn
 from eth_utils import to_checksum_address
@@ -142,37 +144,6 @@ class TokenIdExceedsMaxValue(Exception):
         super().__init__(f"Token ID {token_id} exceeds the maximum value")
 
 
-# Return Pirates as Entities from an address
-def get_pirate_entities(address, skip_level_30):
-
-    query = pn.make_pirate_query(address)
-    json_data = pn.get_data(query)
-
-    pirate_entities = []
-
-    for account in json_data['data']['accounts']:
-        for nft in account['nfts']:
-            id_value = nft['id']
-            name_value = nft['name']
-
-            # Extract level value
-            level_value = None
-
-            for trait in nft['traits']:
-                if trait['metadata']['name'] == 'level':
-                    level_value = int(trait['value'])
-                    break            
-
-            print(f"{name_value} present")
-
-            if level_value == 30 and skip_level_30:
-                print(f"Skipping {name_value} because it's level 30!!!!!!!!!!!!!!!!")
-            else:
-                pirate_entities.append(pn.graph_id_to_entity(id_value))
-
-    return pirate_entities
-
-
 def main():
     # pull arguments out for start and end
     args = parse_arguments()
@@ -180,8 +151,9 @@ def main():
     print("startBounty:", args.start)
     print()
 
-    # Load data from addresses.csv
-    df_addressses = pd.read_csv(pn.data_path("addresses.csv"))
+    # Load data from csv file
+    csv_file = pn.select_csv_file()
+    df_addressses = pd.read_csv(csv_file) #replace with your file_path
 
     # Display available bounties to the user only if we have start flag set
     if args.start:
@@ -227,7 +199,6 @@ def main():
         pirate_ids = pn.get_pirate_ids(address)
 
         print(f"Wallet {wallet} has the following pirates: {pirate_ids}")
-        input()
 
         bounties_to_execute = {} # initialize a dictionary of bounties and pirates we want to execute
 
@@ -263,10 +234,13 @@ def main():
             hex_value = get_bounty_hex(bounty_data, group_id, num_of_pirates)
             
             # Convert hexadecimal string to base 10 integer
-            # FYI, This is the bounty ID for the user-selected bounty_name
+            # FYI, This is the bounty ID for the user-selected bounty_name  
             bounty_id = int(hex_value, 16)   
 
-            started_bounties += start_bounty(web3, bounty_contract, address, private_key, bounty_id, entity_ids) 
+            started_bounties += start_bounty(web3, bounty_contract, address, private_key, bounty_id, entity_ids)
+            # Delay to allow the network to update the nonce
+            if len(bounties_to_execute) > 1:
+                time.sleep(1)              
             print("---------------------------------------------------------------------------")
 
     print(f"claimed {ended_bounties} bounties and started {started_bounties} bounties")
@@ -278,20 +252,16 @@ def get_default_bounty_group_id():
     
     bounty_mappings_df = _bounty_mappings.get_mappings_df()
     
-    for index, row in bounty_mappings_df.iterrows():
-        print(f"{index + 1}. {row['bounty_name']}")
+    # Create a list of choices for questionary
+    choices = [{"name": f"{index + 1}. {row['bounty_name']}", "value": row['group_id']} for index, row in bounty_mappings_df.iterrows()]
 
-    # Get user input for the bounty they are interested in
-    selected_index = int(input("Please enter the number corresponding to the default bounty you're interested in: ")) - 1
+    # Prompt the user to select a default bounty
+    selected_group_id = questionary.select(
+        "Please select the default bounty you're interested in:",
+        choices=choices
+    ).ask()
 
-    # Validate user input
-    if selected_index < 0 or selected_index >= len(bounty_mappings_df):
-       return None
-    
-    # Find the corresponding hex value for the selected bounty_name
-    selected_bounty_name = bounty_mappings_df.iloc[selected_index]['bounty_name']
-    group_id = bounty_mappings_df.iloc[selected_index]['group_id']
-    return group_id
+    return selected_group_id
 
 
 def start_bounty(web3, contract_to_write, address, private_key, bounty_id, pirates):
