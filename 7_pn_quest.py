@@ -220,7 +220,7 @@ def main_script():
                     print(f"        Transaction {status}: {C_GREEN}:{txn_hash.hex()}{C_END}")
                 else:
                     print(f"        Transaction {status}: {C_RED}:{txn_hash.hex()}{C_END}")
-                    break # adding failsafe to break if a transaction failrs
+                    break # adding failsafe to break if a transaction fails
 
                 initial_energy_balance -= quest_energy_cost
                 print(f"        Remaining energy: {C_CYAN}{initial_energy_balance}{C_END}")
