@@ -43,10 +43,12 @@ def excel_sheet(json_string, ordered_addresses):
 
     # Initialize empty DataFrame with initial columns
     df = pd.DataFrame(columns=columns)
+    df = df.dropna(axis=1, how='all')    
 
     # Initialize walletID
     walletID = 1
 
+    eth_to_usd_price = 0
     if GET_ETH_BALANCE:
         # Get the ETH-to-USD exchange rate
         start_time = time.time()   
@@ -72,61 +74,9 @@ def excel_sheet(json_string, ordered_addresses):
 
         print(f"{walletID}", end='...', flush=True)
         if walletID % 10 == 0:  # Check if it's the 10th, 20th, 30th, etc. iteration
-            print()  # Add a line break        
+            print()  # Add a line break      
                
-        address = row['address']
-        currencies = row['currencies']
-        gameItems = row['gameItems']
-        nfts = row['nfts']
-
-        ship_types_count = {}
-
-        # Assign walletID
-        df.loc[address, 'walletID'] = walletID
-        df.loc[address, 'address'] = address
-
-        # Get the ETH balance
-        if GET_ETH_BALANCE:
-            eth_balance_eth = pn.get_nova_eth_balance(address)       
-            df.loc[address,'Nova $'] =  round(eth_balance_eth * eth_to_usd_price, 2)
-
-        # read the acrive energy for the address
-        if GET_ENERGY_BALANCE:
-            df.loc[address,'Energy'] =  pn.get_energy(address)
-        
-        pgld = float(currencies[0]['amount'])
-        if pgld > 0 : pgld = pgld / (10 ** 18)
-
-        if 'PGLD' not in df.columns:
-            df['PGLD'] = 0
-
-        # Add the PGLD value to the appropriate cell in the DataFrame
-        df.loc[address, 'PGLD'] = math.floor(pgld)
-
-        # get the ship counts for the account
-        if GET_SHIP_COUNT:
-            for nft in nfts:
-                ship_type = nft['name']
-                if ship_type not in ship_types_count:
-                    ship_types_count[ship_type] = 0
-                ship_types_count[ship_type] += 1
-
-            for ship_type in ship_types_count:
-                if ship_type not in df.columns:
-                    df[ship_type] = 0
-                df.loc[address, ship_type] = ship_types_count[ship_type]
-
-        # Iterate over game items
-        for game_item in gameItems:
-            name = game_item['gameItem']['name']
-            amount = int(game_item['amount'])
-
-            # If the item name is not a column in the DataFrame, add it
-            if name not in df.columns:
-                df[name] = 0
-
-            # Add the item amount to the appropriate cell in the DataFrame
-            df.loc[address, name] = amount
+        df = df._append(handle_wallet(index+1, eth_to_usd_price, row), sort=False)
         
         walletID += 1
 
@@ -177,8 +127,74 @@ def excel_sheet(json_string, ordered_addresses):
 
     # Also export to a same directory the csv to be stored in github
     sums_df = pd.DataFrame([[None, None] + column_sums], columns=df.columns)
+
+    # Drop columns that are all NA from sums_df
+    sums_df = sums_df.dropna(axis=1, how='all')
+
     df = df._append(sums_df, ignore_index=True)
     df.to_csv("pn_inventory.csv", index=False)
+
+def handle_wallet(walletID, eth_to_usd_price, row):
+    local_df = pd.DataFrame()
+
+    address = row['address']
+    currencies = row['currencies']
+    gameItems = row['gameItems']
+    nfts = row['nfts']
+
+    ship_types_count = {}
+
+    # Assign walletID
+    local_df.loc[address, 'walletID'] = walletID
+    local_df['address'] = None
+    local_df['address'] = local_df['address'].astype(str)
+    local_df.loc[address, 'address'] = address
+
+    # Get the ETH balance
+    if GET_ETH_BALANCE:
+        eth_balance_eth = pn.get_nova_eth_balance(address)       
+        local_df.loc[address,'Nova $'] =  round(eth_balance_eth * eth_to_usd_price, 2)
+
+    # read the acrive energy for the address
+    if GET_ENERGY_BALANCE:
+        local_df.loc[address,'Energy'] =  pn.get_energy(address)
+        
+    pgld = float(currencies[0]['amount'])
+    if pgld > 0 : pgld = pgld / (10 ** 18)
+
+    if 'PGLD' not in local_df.columns:
+        local_df['PGLD'] = 0
+
+    # Add the PGLD value to the appropriate cell in the DataFrame
+    local_df.loc[address, 'PGLD'] = math.floor(pgld)
+
+    # get the ship counts for the account
+    if GET_SHIP_COUNT:
+        for nft in nfts:
+            ship_type = nft['name']
+            if ship_type not in ship_types_count:
+                ship_types_count[ship_type] = 0
+            ship_types_count[ship_type] += 1
+
+        for ship_type in ship_types_count:
+            if ship_type not in local_df.columns:
+                local_df[ship_type] = 0
+            local_df.loc[address, ship_type] = ship_types_count[ship_type]
+
+    # Iterate over game items
+    for game_item in gameItems:
+        name = game_item['gameItem']['name']
+        amount = int(game_item['amount'])
+
+        # If the item name is not a column in the DataFrame, add it
+        if name not in local_df.columns:
+            local_df[name] = 0
+
+        # Add the item amount to the appropriate cell in the DataFrame
+        local_df.loc[address, name] = amount
+
+    return local_df
+
 
 def main():
     file_path = pn.data_path('addresses.txt')  
