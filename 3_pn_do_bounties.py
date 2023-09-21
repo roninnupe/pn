@@ -4,6 +4,10 @@ import questionary
 import pandas as pd
 import pn_helper as pn
 from eth_utils import to_checksum_address
+from concurrent.futures import ThreadPoolExecutor
+
+MULTI_THREADED = True
+MAX_THREADS = 10
 
 # The query used to get all bounties from the PN Grpah
 bounty_query = """
@@ -145,6 +149,8 @@ class TokenIdExceedsMaxValue(Exception):
 
 
 def main():
+    start_time = time.time()
+    
     # pull arguments out for start and end
     args = parse_arguments()
     print("endBounty:", args.end)
@@ -158,7 +164,7 @@ def main():
     # Display available bounties to the user only if we have start flag set
     if args.start:
         default_group_id = get_default_bounty_group_id()
-        print(f"default_group_id: {default_group_id}")
+        print(f"default_group_id: {default_group_id}\n\n")
 
     # Initialize web3 with the PN
     web3 = pn.Web3Singleton.get_web3_Nova()
@@ -170,80 +176,129 @@ def main():
     # Load the JSON data from the file
     bounty_data = pn.get_data(bounty_query)
 
-    print("---------------------------------------------------------------------------")
-    for index, row in df_addressses.iterrows():
-        wallet = row['wallet']
-        address = row['address']
-        private_key = row['key']
+    # CODE if we are going to run bounties multithreaded 
+    if MULTI_THREADED :
 
-        print(f"Executing Bounties on {wallet} - {address}")
+        #pre initialize for thread safety
+        _pirate_bounty_mappings.get_mappings_df()
 
-        # read the activeBounties for the address
-        function_name = 'activeBountyIdsForAccount'
-        function_args = [address]
-        result = bounty_contract.functions[function_name](*function_args).call()
+        with ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
+            # Submit jobs to the executor
+            futures = [executor.submit(process_address, args, default_group_id, web3, bounty_contract, bounty_data, row) 
+                for index, row in df_addressses.iterrows()]
 
-        print("Active Bounty IDs: ", result)
+            # Collect results as they come in
+            for future in futures:
+                buffer, num_ended_bounties, num_started_bounties = future.result()
+                ended_bounties += num_ended_bounties
+                started_bounties += num_started_bounties
 
-        # handle ending of bounties if we have the end flag set
-        if args.end:
-            for active_bounty_id in result:
-                ended_bounties += end_bounty(web3, bounty_contract, address, private_key, active_bounty_id)        
+    # if we are going to go in order sequentially
+    else:
+
+        for index, row in df_addressses.iterrows():
+            buffer, num_ended_bounties, num_started_bounties = process_address(args, default_group_id, web3, bounty_contract, bounty_data, row)
+            ended_bounties += num_ended_bounties
+            started_bounties += num_started_bounties
+
+    end_time = time.time()
+    execution_time = end_time - start_time           
+
+    print(f"\nclaimed {ended_bounties} bounties and started {started_bounties} bounties in {execution_time:.2f} seconds")
 
 
-        # if we don't have start bounties set then continue and skip all the remaining code below
-        if not args.start:
+def process_address(args, default_group_id, web3, bounty_contract, bounty_data, row):
+    start_time = time.time()
+
+    num_ended_bounties = 0
+    num_started_bounties = 0
+
+    buffer = []
+
+    wallet = row['wallet']
+    address = row['address']
+    private_key = row['key']
+
+    buffer.append("---------------------------------------------------------------------------")
+    buffer.append(f"-------------- {wallet} - {address}")
+    buffer.append("---------------------------------------------------------------------------")
+
+    # read the activeBounties for the address
+    function_name = 'activeBountyIdsForAccount'
+    function_args = [address]
+    result = bounty_contract.functions[function_name](*function_args).call()
+    end_time = time.time()
+    execution_time = end_time - start_time
+
+    buffer.append(f"\n   Active Bounty IDs: {result}")
+    buffer.append(f"   fetched in {execution_time:.2f} seconds\n")
+
+    # handle ending of bounties if we have the end flag set
+    if args.end:
+        for active_bounty_id in result:
+            num_ended_bounties += end_bounty(web3, bounty_contract, address, private_key, active_bounty_id, buffer)        
+
+
+    # if we don't have start bounties set then continue and skip all the remaining code below
+    if not args.start:
+        end_time = time.time()
+        execution_time = end_time - start_time
+        buffer.append(f"\n   Execution time: {execution_time:.2f} seconds")
+        buffer.append("---------------------------------------------------------------------------")     
+        print("\n".join(buffer))
+        return buffer, num_ended_bounties, num_started_bounties
+
+    # load up all the pirate IDs per address
+    pirate_ids = pn.get_pirate_ids(address)
+
+    buffer.append(f"\n   Wallet {wallet} has the following pirates: {pirate_ids}")
+
+    bounties_to_execute = {} # initialize a dictionary of bounties and pirates we want to execute
+
+    # Loop through the pirate_ids and load up bounties_to_execute
+    for pirate_id in pirate_ids:
+        bounty_name = get_bounty_for_token_id(pirate_id)
+        bounty_group_id = get_group_id_by_bounty_name(bounty_name)
+            
+        # use the default group_id if we don't find one, and only if we have specified a default group_id
+        if bounty_group_id is None:
+            if default_group_id is None:
+                continue
+            else: 
+                bounty_group_id = default_group_id
+            
+        # Check if the bounty_group_id is already in the dictionary, if not, create an empty list
+        if bounty_group_id not in bounties_to_execute:
+            bounties_to_execute[bounty_group_id] = []
+
+        # Append the pirate_id to the list associated with the bounty_group_id
+        bounties_to_execute[bounty_group_id].append(pn.pirate_token_id_to_entity(pirate_id))
+
+        #buffer.append(f"Pirate ID: {pirate_id}, Bounty Name: {bounty_name}, Group ID: {bounty_group_id}")
+
+    # Now loop over bounties to execute and execute them
+    for group_id, entity_ids in bounties_to_execute.items():   
+        # if no pirates to send, don't continue on with the remaining logic in this part of the loop
+        num_of_pirates = len(entity_ids)
+        if num_of_pirates == 0: 
             continue
 
-        # load up all the pirate IDs per address
-        pirate_ids = pn.get_pirate_ids(address)
-
-        print(f"Wallet {wallet} has the following pirates: {pirate_ids}")
-
-        bounties_to_execute = {} # initialize a dictionary of bounties and pirates we want to execute
-
-        # Loop through the pirate_ids and load up bounties_to_execute
-        for pirate_id in pirate_ids:
-            bounty_name = get_bounty_for_token_id(pirate_id)
-            bounty_group_id = get_group_id_by_bounty_name(bounty_name)
+        hex_value = get_bounty_hex(bounty_data, group_id, num_of_pirates)
             
-            # use the default group_id if we don't find one, and only if we have specified a default group_id
-            if bounty_group_id is None:
-                if default_group_id is None:
-                    continue
-                else: 
-                    bounty_group_id = default_group_id
-            
-            # Check if the bounty_group_id is already in the dictionary, if not, create an empty list
-            if bounty_group_id not in bounties_to_execute:
-                bounties_to_execute[bounty_group_id] = []
+        # Convert hexadecimal string to base 10 integer
+        # FYI, This is the bounty ID for the user-selected bounty_name  
+        bounty_id = int(hex_value, 16)   
 
-            # Append the pirate_id to the list associated with the bounty_group_id
-            bounties_to_execute[bounty_group_id].append(pn.pirate_token_id_to_entity(pirate_id))
+        num_started_bounties += start_bounty(web3, bounty_contract, address, private_key, bounty_id, entity_ids, buffer)
+        # Delay to allow the network to update the nonce
+        if len(bounties_to_execute) > 1: time.sleep(1)              
 
-            print(f"Pirate ID: {pirate_id}, Bounty Name: {bounty_name}, Group ID: {bounty_group_id}")
-
-        # Now loop over bounties to execute and execute them
-        for group_id, entity_ids in bounties_to_execute.items():   
-        # if no pirates to send, don't continue on with the remaining logic in this part of the loop
-            num_of_pirates = len(entity_ids)
-            if num_of_pirates == 0: 
-                print("---------------------------------------------------------------------------")
-                continue
-
-            hex_value = get_bounty_hex(bounty_data, group_id, num_of_pirates)
-            
-            # Convert hexadecimal string to base 10 integer
-            # FYI, This is the bounty ID for the user-selected bounty_name  
-            bounty_id = int(hex_value, 16)   
-
-            started_bounties += start_bounty(web3, bounty_contract, address, private_key, bounty_id, entity_ids)
-            # Delay to allow the network to update the nonce
-            if len(bounties_to_execute) > 1:
-                time.sleep(1)              
-            print("---------------------------------------------------------------------------")
-
-    print(f"claimed {ended_bounties} bounties and started {started_bounties} bounties")
+    end_time = time.time()
+    execution_time = end_time - start_time
+    buffer.append(f"\n   Execution time: {execution_time:.2f} seconds")   
+    buffer.append("---------------------------------------------------------------------------")  
+    print("\n".join(buffer))
+    return buffer, num_ended_bounties, num_started_bounties
 
 #Prompts the user to choose a bounty, and returns the respective group id
 def get_default_bounty_group_id():
@@ -264,8 +319,8 @@ def get_default_bounty_group_id():
     return selected_group_id
 
 
-def start_bounty(web3, contract_to_write, address, private_key, bounty_id, pirates):
-    print(f"Attempting to send {pirates}\n  on bounty_id: {bounty_id}")
+def start_bounty(web3, contract_to_write, address, private_key, bounty_id, pirates, buffer):
+    buffer.append(f"   Sending {len(pirates)} pirates on bounty_id: {bounty_id}")
     txn_dict = {
         'from': address,
         'to': contract_to_write.address,
@@ -277,15 +332,15 @@ def start_bounty(web3, contract_to_write, address, private_key, bounty_id, pirat
 
     try:
         pn.send_web3_transaction(web3, private_key, txn_dict)
-        print(f'Done startBounty from: {address}')
+        buffer.append(f'   -> Finished startBounty on: {address}')
         return 1
     except Exception as e:
-        print("  **Error sending startBounty transaction:", e)
+        buffer.append(f"   -> **Error startBounty transaction: {e}")
         return 0
 
 
-def end_bounty(web3, contract_to_write, address, private_key, bounty_id):
-    print(f"Attempting to end active_bounty_id: {bounty_id}")
+def end_bounty(web3, contract_to_write, address, private_key, bounty_id, buffer):
+    buffer.append(f"   Ending active_bounty_id: {bounty_id}")
     txn_dict = {
         'from': address,
         'to': contract_to_write.address,
@@ -298,10 +353,10 @@ def end_bounty(web3, contract_to_write, address, private_key, bounty_id):
     try:
         # Estimate the gas for this specific transaction
         pn.send_web3_transaction(web3, private_key, txn_dict)
-        print(f'Done endBounty from: {address}')
+        buffer.append(f'   -> Finished endBounty on: {address}')
         return 1
     except Exception as e:
-        print("  **Error sending endBounty transaction:", e)
+        buffer.append(f"   -> **Error endBounty transaction: {e}")
         return 0
 
 
