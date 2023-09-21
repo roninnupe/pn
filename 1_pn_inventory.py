@@ -8,9 +8,9 @@ import pn_helper as pn
 from concurrent.futures import ThreadPoolExecutor
 
 # Global boolean variables
-GET_ETH_BALANCE = False
+GET_ETH_BALANCE = True
 GET_SHIP_COUNT = True
-GET_ENERGY_BALANCE = False
+GET_ENERGY_BALANCE = True
 
 def fetch_user_inputs():
     global GET_ETH_BALANCE, GET_ENERGY_BALANCE
@@ -67,7 +67,8 @@ def excel_sheet(json_string, ordered_addresses):
     start_time = time.time() 
 
     # Maximum number of threads you want to run in parallel.
-    MAX_THREADS = 5
+    MAX_THREADS = 25
+    pn.Web3Singleton.get_EnergySystem() # Lets preload this 
 
     print(f"Iterating over {number_of_accounts} accounts to build the Excel output:")
 
@@ -209,7 +210,7 @@ def main():
     formatted_output = pn.format_addresses_for_query(addresses)
 
     # Call the function to fetch user inputs and set global variables
-    fetch_user_inputs()
+    # fetch_user_inputs()
 
     start_time = time.time()
 

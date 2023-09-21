@@ -8,7 +8,11 @@ import requests
 import pandas as pd
 from web3 import Web3
 import personal_settings # you are required to make a personal settings and define certain variables to help scripts
+from functools import lru_cache
+import threading
 
+# Create a lock for thread safety
+lock = threading.Lock()
 
 ######################################################
 # WEB 3 END POINTS & Other API references
@@ -38,27 +42,29 @@ _abi_URL_QuestSystem = "https://api-nova.arbiscan.io/api?module=contract&action=
 
 _contract_PirateNFT_addr = "0x5b0661b61b0e947e7e49ce7a67abaf8eaafcdc1a"
 
+@lru_cache(maxsize=32)
 def get_abi_from_url(abi_url):
-    try:
-        # Make an HTTP GET request to fetch the ABI
-        response = requests.get(abi_url)
+    with lock:
+        try:
+            # Make an HTTP GET request to fetch the ABI
+            response = requests.get(abi_url)
 
-        # Check if the request was successful (status code 200)
-        if response.status_code == 200:
-            # Parse the JSON response into a Python dictionary
-            abi_data = json.loads(response.text)
+            # Check if the request was successful (status code 200)
+            if response.status_code == 200:
+                # Parse the JSON response into a Python dictionary
+                abi_data = json.loads(response.text)
 
-            # Extract the ABI from the dictionary
-            abi = json.loads(abi_data['result'])
+                # Extract the ABI from the dictionary
+                abi = json.loads(abi_data['result'])
 
-            return abi
+                return abi
 
-        else:
-            print("Failed to fetch ABI from the URL.")
+            else:
+                print("Failed to fetch ABI from the URL.")
+                return None
+        except Exception as e:
+            print(f"Error: {str(e)}")
             return None
-    except Exception as e:
-        print(f"Error: {str(e)}")
-        return None
 
 
 class Web3Singleton:
