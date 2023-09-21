@@ -5,6 +5,7 @@ import time
 import pandas as pd
 from web3 import Web3
 import pn_helper as pn
+from concurrent.futures import ThreadPoolExecutor
 
 # Global boolean variables
 GET_ETH_BALANCE = False
@@ -45,9 +46,6 @@ def excel_sheet(json_string, ordered_addresses):
     df = pd.DataFrame(columns=columns)
     df = df.dropna(axis=1, how='all')    
 
-    # Initialize walletID
-    walletID = 1
-
     eth_to_usd_price = 0
     if GET_ETH_BALANCE:
         # Get the ETH-to-USD exchange rate
@@ -68,17 +66,22 @@ def excel_sheet(json_string, ordered_addresses):
 
     start_time = time.time() 
 
-    # Iterate over accounts
-    print(f"Iterating over {number_of_accounts} accounts to build the Excel output:")
-    for index, row in df_accounts.iterrows():
+    # Maximum number of threads you want to run in parallel.
+    MAX_THREADS = 5
 
-        print(f"{walletID}", end='...', flush=True)
-        if walletID % 10 == 0:  # Check if it's the 10th, 20th, 30th, etc. iteration
-            print()  # Add a line break      
-               
-        df = df._append(handle_wallet(index+1, eth_to_usd_price, row), sort=False)
-        
-        walletID += 1
+    print(f"Iterating over {number_of_accounts} accounts to build the Excel output:")
+
+    # Using ThreadPoolExecutor to process the wallets.
+    with ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
+        # Map each account to a thread.
+        futures = [executor.submit(handle_wallet, index+1, eth_to_usd_price, row) for index, row in df_accounts.iterrows()]
+
+    # Collect results as they come in.
+    results = [future.result() for future in futures]
+
+    # Append each result to the main DataFrame.
+    for result in results:
+        df = df._append(result, sort=False)
 
     end_time = time.time()
     avg_execution_time = (end_time - start_time) / number_of_accounts
@@ -87,8 +90,12 @@ def excel_sheet(json_string, ordered_addresses):
     # Replace NaN values with zeros
     df.fillna(0, inplace=True)
 
-    # Rename columns to be more friendly
+    # Rename columns to be more friendly, and then order them properly
     df.rename(columns=data_name_to_display_name, inplace=True)
+    specific_order = list(data_name_to_display_name.values())
+    additional_columns = [col for col in df.columns if col not in specific_order]
+    final_order = specific_order + additional_columns
+    df = df.reindex(columns=final_order)
 
     # Convert DataFrame to Excel
     # Versions of Pandas >= 1.3.0:
