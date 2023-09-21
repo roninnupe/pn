@@ -1,4 +1,3 @@
-import math
 import time
 import pandas as pd
 import pn_helper as pn
@@ -12,6 +11,7 @@ from pygments.token import Token
 from prompt_toolkit.styles import Style
 from termcolor import colored
 from itertools import cycle
+from concurrent.futures import ThreadPoolExecutor
 
 
 
@@ -195,38 +195,55 @@ def start_quest(contract, address, key, quest):
 
 
 def main_script():
+
+    start_time = time.time()
+
+    # Number of threads to use
+    MAX_THREADS = 25
+
     with open(pn.data_path("addresses_with_pk.csv"), mode='r') as file:
         csv_reader = csv.DictReader(file)
 
-        for row in csv_reader:
-            wallet_id = row['wallet']
-            address = row['address']
-            key = row['key']
+        with ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
+            results = list(executor.map(handle_row, csv_reader))
 
-            print(f"{C_BLUE}---------------------- Wallet {wallet_id} ----------------------{C_END}")
+    end_time = time.time()
+    execution_time = end_time - start_time
+    print(f"\n   Execution time: {execution_time:.2f} seconds")       
+    
 
-            initial_energy_balance = pn.get_energy(address)
-            print(f"Initial energy balance: {C_YELLOWLIGHT}{initial_energy_balance}{C_END}")
+def handle_row(row):
+    wallet_id = row['wallet']
+    address = row['address']
 
-            for chosen_quest in chosen_quests:
-                quest_energy_cost = chosen_quest['energy']
-                if initial_energy_balance < quest_energy_cost:
-                    print(f"Energy insufficient for quest {chosen_quest['name']}. Moving to next quest or wallet.")
-                    continue
+    key = row['key']
+    buffer = []
 
-                print(f"    {quest_colors[chosen_quest['name']]}{chosen_quest['name']}{C_END}")
-                txn_hash, status = start_quest(quest_contract, address, key, chosen_quest)
-                if status == "Successful": 
-                    print(f"        Transaction {status}: {C_GREEN}:{txn_hash.hex()}{C_END}")
-                else:
-                    print(f"        Transaction {status}: {C_RED}:{txn_hash.hex()}{C_END}")
-                    break # adding failsafe to break if a transaction fails
+    buffer.append(f"{C_BLUE}---------------------- Wallet {wallet_id} ----------------------{C_END}")
 
-                initial_energy_balance -= quest_energy_cost
-                print(f"        Remaining energy: {C_CYAN}{initial_energy_balance}{C_END}")
+    initial_energy_balance = pn.get_energy(address)
+    buffer.append(f"Initial energy balance: {C_YELLOWLIGHT}{initial_energy_balance}{C_END}")
 
-            print(f"\nTotal Remaining energy for wallet {wallet_id}: {C_CYAN}{initial_energy_balance}{C_END}")
-            print(f"{C_BLUE}-------------------------------------------------------{C_END}")
+    for chosen_quest in chosen_quests:
+        quest_energy_cost = chosen_quest['energy']
+        if initial_energy_balance < quest_energy_cost:
+            buffer.append(f"Energy insufficient for quest {chosen_quest['name']}. Moving to next quest or wallet.")
+            continue
+
+        buffer.append(f"    {quest_colors[chosen_quest['name']]}{chosen_quest['name']}{C_END}")
+        txn_hash, status = start_quest(quest_contract, address, key, chosen_quest)
+        if status == "Successful": 
+            buffer.append(f"        Transaction {status}: {C_GREEN}:{txn_hash.hex()}{C_END}")
+        else:
+            buffer.append(f"        Transaction {status}: {C_RED}:{txn_hash.hex()}{C_END}")
+            break # adding failsafe to break if a transaction fails
+
+        initial_energy_balance -= quest_energy_cost
+        buffer.append(f"        Remaining energy: {C_CYAN}{initial_energy_balance}{C_END}")
+
+    buffer.append(f"\nTotal Remaining energy for wallet {wallet_id}: {C_CYAN}{initial_energy_balance}{C_END}")
+    buffer.append(f"{C_BLUE}-------------------------------------------------------{C_END}")
+    print("\n".join(buffer))
 
 
 main_script()
