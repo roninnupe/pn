@@ -182,16 +182,9 @@ def start_quest(contract, address, key, quest):
 
     signed_txn = web3.eth.account.sign_transaction(txn, private_key=key)
     txn_hash = web3.eth.send_raw_transaction(signed_txn.rawTransaction)
-    time.sleep(1)
-    txn_reciept = web3.eth.get_transaction_receipt(txn_hash)
+    txn_reciept = web3.eth.wait_for_transaction_receipt(txn_hash)
 
-    if txn_reciept is None:
-        return txn_hash, "Pending"  # Transaction is still pending
-
-    if txn_reciept["status"] == 1:
-        return txn_hash, "Successful"  # Transaction was successful
-    else:
-        return txn_hash, "Failed"  # Transaction failed
+    return txn_hash, pn.get_status_message(txn_reciept)
 
 
 def main_script():

@@ -329,11 +329,13 @@ def fetch_quest_data():
     """
     return get_data(query)
 
+
 # makes sure to properly format address to checksum lowercase variant
 def to_web3_address(address):
     return Web3.to_checksum_address(address.lower())
 
 
+# Sends a web3 transaction and returns it's transaction reciept
 def send_web3_transaction(web3, private_key, txn_dict):
     # Estimate the gas for this specific transaction
     txn_dict['gas'] = web3.eth.estimate_gas(txn_dict)
@@ -344,12 +346,22 @@ def send_web3_transaction(web3, private_key, txn_dict):
 
     # Send the transaction
     txn_hash = web3.eth.send_raw_transaction(signed_txn.rawTransaction)
-    print('Transaction hash:', txn_hash.hex())  # This will give you the transaction hash
 
     # Wait for the transaction to be mined, and get the transaction receipt
     txn_receipt = web3.eth.wait_for_transaction_receipt(txn_hash)
 
     return txn_receipt
+
+
+# Convert a transaction reciept into it's display friendly message
+def get_status_message(txn_reciept):
+    if txn_reciept is None:
+        return "Pending"  # Transaction is still pending
+
+    if txn_reciept["status"] == 1:
+        return "Successful"  # Transaction was successful
+    else:
+        return "Failed"  # Transaction failed    
 
 
 def send_nova_eth(sender, recipient, amount_in_eth, private_key, gas_limit=30000, subtract_gas=False):
