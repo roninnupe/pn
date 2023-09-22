@@ -10,9 +10,21 @@ from web3 import Web3
 import personal_settings # you are required to make a personal settings and define certain variables to help scripts
 from functools import lru_cache
 import threading
+from prompt_toolkit.styles import Style
+from termcolor import colored
 
 # Create a lock for thread safety
 lock = threading.Lock()
+
+# Color Constants for CLI
+C_RED = "\033[91m"
+C_GREEN = "\033[92m"
+C_YELLOW = "\033[93m"
+C_BLUE = "\033[94m"
+C_MAGENTA = "\033[95m"
+C_CYAN = "\033[96m"
+C_END = '\033[0m'  # Reset to the default color
+C_YELLOWLIGHT = "\033[33m"
 
 ######################################################
 # WEB 3 END POINTS & Other API references

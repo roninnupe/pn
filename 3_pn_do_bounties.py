@@ -164,7 +164,7 @@ def main():
     # Display available bounties to the user only if we have start flag set
     if args.start:
         default_group_id = get_default_bounty_group_id()
-        print(f"default_group_id: {default_group_id}\n\n")
+        print(f"{pn.C_GREEN}default_group_id:{pn.C_CYAN} {default_group_id}{pn.C_END}\n\n")
 
     # Initialize web3 with the PN
     web3 = pn.Web3Singleton.get_web3_Nova()
@@ -179,12 +179,14 @@ def main():
     # CODE if we are going to run bounties multithreaded 
     if MULTI_THREADED :
 
+        print("Initiating Multithreading")
+
         #pre initialize for thread safety
         _pirate_bounty_mappings.get_mappings_df()
 
         with ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
             # Submit jobs to the executor
-            futures = [executor.submit(process_address, args, default_group_id, web3, bounty_contract, bounty_data, row) 
+            futures = [executor.submit(process_address, args, default_group_id, web3, bounty_contract, bounty_data, row, MULTI_THREADED) 
                 for index, row in df_addressses.iterrows()]
 
             # Collect results as they come in
@@ -197,7 +199,7 @@ def main():
     else:
 
         for index, row in df_addressses.iterrows():
-            buffer, num_ended_bounties, num_started_bounties = process_address(args, default_group_id, web3, bounty_contract, bounty_data, row)
+            buffer, num_ended_bounties, num_started_bounties = process_address(args, default_group_id, web3, bounty_contract, bounty_data, row, MULTI_THREADED)
             ended_bounties += num_ended_bounties
             started_bounties += num_started_bounties
 
@@ -207,7 +209,8 @@ def main():
     print(f"\nclaimed {ended_bounties} bounties and started {started_bounties} bounties in {execution_time:.2f} seconds")
 
 
-def process_address(args, default_group_id, web3, bounty_contract, bounty_data, row):
+def process_address(args, default_group_id, web3, bounty_contract, bounty_data, row, is_multi_threaded):
+
     start_time = time.time()
 
     num_ended_bounties = 0
@@ -219,9 +222,11 @@ def process_address(args, default_group_id, web3, bounty_contract, bounty_data, 
     address = row['address']
     private_key = row['key']
 
-    buffer.append("---------------------------------------------------------------------------")
-    buffer.append(f"-------------- {wallet} - {address}")
-    buffer.append("---------------------------------------------------------------------------")
+    if is_multi_threaded: print(f"{pn.C_YELLOWLIGHT}starting thread {wallet}{pn.C_END}")
+
+    buffer.append(f"{pn.C_GREEN}---------------------------------------------------------------------------")
+    buffer.append(f"--------------{pn.C_END} {wallet} - {address}")
+    buffer.append(f"{pn.C_GREEN}---------------------------------------------------------------------------{pn.C_END}")
 
     # read the activeBounties for the address
     function_name = 'activeBountyIdsForAccount'
@@ -243,8 +248,8 @@ def process_address(args, default_group_id, web3, bounty_contract, bounty_data, 
     if not args.start:
         end_time = time.time()
         execution_time = end_time - start_time
-        buffer.append(f"\n   Execution time: {execution_time:.2f} seconds")
-        buffer.append("---------------------------------------------------------------------------")     
+        buffer.append(f"\n   {pn.C_CYAN}Execution time: {execution_time:.2f} seconds{pn.C_END}")
+        buffer.append(f"{pn.C_GREEN}---------------------------------------------------------------------------{pn.C_END}")   
         print("\n".join(buffer))
         return buffer, num_ended_bounties, num_started_bounties
 
@@ -295,8 +300,8 @@ def process_address(args, default_group_id, web3, bounty_contract, bounty_data, 
 
     end_time = time.time()
     execution_time = end_time - start_time
-    buffer.append(f"\n   Execution time: {execution_time:.2f} seconds")   
-    buffer.append("---------------------------------------------------------------------------")  
+    buffer.append(f"\n   {pn.C_CYAN}Execution time: {execution_time:.2f} seconds{pn.C_END}")
+    buffer.append(f"{pn.C_GREEN}---------------------------------------------------------------------------{pn.C_END}")    
     print("\n".join(buffer))
     return buffer, num_ended_bounties, num_started_bounties
 
@@ -331,11 +336,13 @@ def start_bounty(web3, contract_to_write, address, private_key, bounty_id, pirat
     }
 
     try:
-        pn.send_web3_transaction(web3, private_key, txn_dict)
-        buffer.append(f'   -> Finished startBounty on: {address}')
+        txn_receipt = pn.send_web3_transaction(web3, private_key, txn_dict)
+        status_message = pn.get_status_message(txn_receipt)
+        buffer.append(f'   -> {pn.C_GREEN}startBounty {status_message}{pn.C_END}: {txn_receipt.transactionHash.hex()}')
         return 1
     except Exception as e:
-        buffer.append(f"   -> **Error startBounty transaction: {e}")
+        error_type = type(e).__name__
+        buffer.append(f"   -> {pn.C_RED}**Error startBounty{pn.C_END}: {e} - {error_type}")
         return 0
 
 
@@ -352,11 +359,13 @@ def end_bounty(web3, contract_to_write, address, private_key, bounty_id, buffer)
 
     try:
         # Estimate the gas for this specific transaction
-        pn.send_web3_transaction(web3, private_key, txn_dict)
-        buffer.append(f'   -> Finished endBounty on: {address}')
+        txn_receipt = pn.send_web3_transaction(web3, private_key, txn_dict)
+        status_message = pn.get_status_message(txn_receipt)
+        buffer.append(f'   -> {pn.C_GREEN}endBounty {status_message}{pn.C_END}: {txn_receipt.transactionHash.hex()}')
         return 1
     except Exception as e:
-        buffer.append(f"   -> **Error endBounty transaction: {e}")
+        error_type = type(e).__name__
+        buffer.append(f"   -> {pn.C_RED}**Error endBounty{pn.C_END}: {e} - {error_type}")
         return 0
 
 
