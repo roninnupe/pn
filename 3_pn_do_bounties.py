@@ -162,6 +162,7 @@ def main():
     df_addressses = pd.read_csv(csv_file) #replace with your file_path
 
     # Display available bounties to the user only if we have start flag set
+    default_group_id = 0
     if args.start:
         default_group_id = get_default_bounty_group_id()
         print(f"{pn.C_GREEN}default_group_id:{pn.C_CYAN} {default_group_id}{pn.C_END}\n\n")
