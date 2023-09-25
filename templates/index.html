@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Image Gallery</title>
+    <style>
+        .image-gallery {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-start;
+            margin: 0px;
+        }
+
+        .image-item {
+            flex: 0 0 calc(10% - 10px); /* Adjust the width for up to 10 images per row */
+            margin: 0px;
+            box-sizing: border-box;
+        }
+
+        .image-item img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        @media screen and (max-width: 1200px) {
+            .image-item {
+                flex-basis: calc(12% - 10px); /* Adjust for up to 8 images per row */
+            }
+        }
+
+        @media screen and (max-width: 768px) {
+            .image-item {
+                flex-basis: calc(16% - 10px); /* Adjust for up to 6 images per row */
+            }
+        }
+
+        @media screen and (max-width: 480px) {
+            .image-item {
+                flex-basis: calc(25% - 10px); /* Adjust for up to 4 images per row */
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Image Gallery</h1>
+    <div class="image-gallery">
+        {% for url in image_urls %}
+        <div class="image-item">
+            <img src="{{ url }}" alt="Image">
+        </div>
+        {% endfor %}
+    </div>
+</body>
+</html>

@@ -107,6 +107,7 @@ query = f"""
             claimedMilestones {{
                 milestoneIndex
             }}
+            imageUrl
             lastTransfer
             traits {{ 
                 value
@@ -152,7 +153,7 @@ if 'data' in data and 'accounts' in data['data']:
                 calculate_upgradable_level(nft)
 
                 # create a row with data, and then iterate over additional traits to finalize the final data row
-                row = {'address': nft['address'], 'tokenId': nft['tokenId'], 'lastTransfer': nft['lastTransfer']}
+                row = {'address': nft['address'], 'tokenId': nft['tokenId'], 'lastTransfer': nft['lastTransfer'], 'imageUrl':nft['imageUrl']}
                 for trait in nft['traits']:
                     row[trait['metadata']['name']] = trait['value']
 
@@ -198,6 +199,7 @@ column_order = [
     "Earring",
     "Coat",
     "Eye Covering",
+    "imageUrl"
 ]
 
 # Step 7: Prepare and Format the Excel File
