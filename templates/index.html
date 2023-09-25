@@ -44,9 +44,11 @@
 <body>
     <h1>Image Gallery</h1>
     <div class="image-gallery">
-        {% for url in image_urls %}
+        {% for image in image_data %}
         <div class="image-item">
-            <img src="{{ url }}" alt="Image">
+            <a href="https://opensea.io/assets/ethereum/0x1b41d54b3f8de13d58102c50d7431fd6aa1a2c48/{{ image['tokenId'] }}" target="_blank">
+                <img src="{{ image['imageUrl'] }}" alt="Image">
+            </a>
         </div>
         {% endfor %}
     </div>
