@@ -6,7 +6,6 @@ import pn_helper as pn
 from eth_utils import to_checksum_address
 from concurrent.futures import ThreadPoolExecutor
 
-MULTI_THREADED = False
 MAX_THREADS = 10
 
 # The query used to get all bounties from the PN Grpah
@@ -68,7 +67,7 @@ def get_group_id_by_bounty_name(target_bounty_name):
         print(f"File not found: {str(e)}")
         return None
     except Exception as e:
-        print(f"An error occurred: {str(e)}")
+        print(f"get_group_id_by_bounty_name({target_bounty_name}): An error occurred: {str(e)}")
         return None
 
 
@@ -135,13 +134,15 @@ def get_bounty_hex(data, group_id, num_of_pirates):
 
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description="Example Argument Parser")
+    parser = argparse.ArgumentParser(description="This is a script to automate bounties")
 
-    parser.add_argument("--skip_end_bounties", dest="end", action='store_false', default=True,
+    parser.add_argument("--skip_end", dest="end", action='store_false', default=True,
                         help="Flag to skip the endBounties")
 
-    parser.add_argument("--skip_start_bounties", dest="start", action="store_false", default=True,
+    parser.add_argument("--skip_start", dest="start", action="store_false", default=True,
                         help="Flag to skip startBounty")
+    
+    parser.add_argument("--max_threads", type=int, default=MAX_THREADS, help=f"Maximum number of threads (default: {MAX_THREADS})")
 
     args = parser.parse_args()
     return args
@@ -160,10 +161,10 @@ def main():
     args = parse_arguments()
     print("endBounty:", args.end)
     print("startBounty:", args.start)
-    print()
+    print("max_theads:", args.max_threads)
 
     # Load data from csv file
-    csv_file = pn.select_csv_file()
+    csv_file = pn.select_file(prefix="addresses_pk", file_extension=".csv")
     df_addressses = pd.read_csv(csv_file) #replace with your file_path
 
     # Display available bounties to the user only if we have start flag set
@@ -183,16 +184,16 @@ def main():
     bounty_data = pn.get_data(bounty_query)
 
     # CODE if we are going to run bounties multithreaded 
-    if MULTI_THREADED :
+    if args.max_threads > 0 :
 
         print("Initiating Multithreading")
 
         #pre initialize for thread safety
         _pirate_bounty_mappings.get_mappings_df()
 
-        with ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
+        with ThreadPoolExecutor(max_workers=args.max_threads) as executor:
             # Submit jobs to the executor
-            futures = [executor.submit(process_address, args, default_group_id, web3, bounty_contract, bounty_data, row, MULTI_THREADED) 
+            futures = [executor.submit(process_address, args, default_group_id, web3, bounty_contract, bounty_data, row, True) 
                 for index, row in df_addressses.iterrows()]
 
             # Collect results as they come in
@@ -205,7 +206,7 @@ def main():
     else:
 
         for index, row in df_addressses.iterrows():
-            buffer, num_ended_bounties, num_started_bounties = process_address(args, default_group_id, web3, bounty_contract, bounty_data, row, MULTI_THREADED)
+            buffer, num_ended_bounties, num_started_bounties = process_address(args, default_group_id, web3, bounty_contract, bounty_data, row, False)
             ended_bounties += num_ended_bounties
             started_bounties += num_started_bounties
 

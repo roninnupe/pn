@@ -192,9 +192,11 @@ def main_script():
     start_time = time.time()
 
     # Number of threads to use
-    MAX_THREADS = 25
+    MAX_THREADS = 3
 
-    with open(pn.data_path("addresses_with_pk.csv"), mode='r') as file:
+    selected_file = pn.select_file(prefix="addresses_pk", file_extension=".csv")
+
+    with open(selected_file, mode='r') as file:
         csv_reader = csv.DictReader(file)
 
         with ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:

@@ -1,5 +1,5 @@
+import argparse
 import os
-import requests
 import json
 import math
 import time
@@ -12,11 +12,15 @@ from concurrent.futures import ThreadPoolExecutor
 GET_ETH_BALANCE = True
 GET_SHIP_COUNT = True
 GET_ENERGY_BALANCE = True
+# Maximum number of threads you want to run in parallel.
+MAX_THREADS = 3
+
 
 def fetch_user_inputs():
     global GET_ETH_BALANCE, GET_ENERGY_BALANCE
     
     # Take inputs from the user
+    print("Note: Temporarily getting rate limited on arbitrum nova calls...")
     get_eth_balance_input = input("Do you want to fetch the Nova Eth balance? (y/n): ")
     get_energy_input = input("Do you want to get the latest energy? (y/n): ")
 
@@ -30,7 +34,9 @@ def merge_data(data_list):
         merged_data["data"]["accounts"].extend(data["data"]["accounts"])
     return merged_data
 
-def excel_sheet(json_string, ordered_addresses, file_name_start):
+def excel_sheet(json_string, ordered_addresses, file_name_start, max_thread_count=MAX_THREADS):
+    print(f"Beginning to construct Excel({max_thread_count} threads)")
+    
     # Parse JSON data
     data = json.loads(json_string)
 
@@ -67,14 +73,12 @@ def excel_sheet(json_string, ordered_addresses, file_name_start):
 
     start_time = time.time() 
 
-    # Maximum number of threads you want to run in parallel.
-    MAX_THREADS = 25
     pn.Web3Singleton.get_EnergySystem() # Lets preload this 
 
     print(f"Iterating over {number_of_accounts} accounts to build the Excel output:")
 
     # Using ThreadPoolExecutor to process the wallets.
-    with ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
+    with ThreadPoolExecutor(max_workers=max_thread_count) as executor:
         # Map each account to a thread.
         futures = [executor.submit(handle_wallet, index+1, eth_to_usd_price, row) for index, row in df_accounts.iterrows()]
 
@@ -152,6 +156,8 @@ def excel_sheet(json_string, ordered_addresses, file_name_start):
         df.to_csv(f"inventory/{file_name_start}.csv", index=False)
 
 def handle_wallet(walletID, eth_to_usd_price, row):
+    global GET_ETH_BALANCE, GET_ENERGY_BALANCE
+
     local_df = pd.DataFrame()
 
     address = row['address']
@@ -169,12 +175,21 @@ def handle_wallet(walletID, eth_to_usd_price, row):
 
     # Get the ETH balance
     if GET_ETH_BALANCE:
-        eth_balance_eth = pn.get_nova_eth_balance(address)       
-        local_df.loc[address,'Nova $'] =  round(eth_balance_eth * eth_to_usd_price, 2)
+        eth_balance_eth = pn.get_nova_eth_balance(address)      
+        # if we get no nova eth back, stop trying to get future energy for accounts 
+        if (eth_balance_eth == None):
+            GET_ETH_BALANCE = False
+        else:
+            local_df.loc[address,'Nova $'] =  round(eth_balance_eth * eth_to_usd_price, 2)
 
     # read the acrive energy for the address
     if GET_ENERGY_BALANCE:
-        local_df.loc[address,'Energy'] =  pn.get_energy(address)
+        energy = pn.get_energy(address)
+        # if we get no energy back, stop trying to get future energy for accounts
+        if(energy == None):
+            GET_ENERGY_BALANCE = False
+        else:
+            local_df.loc[address,'Energy'] = energy
         
     pgld = float(currencies[0]['amount'])
     if pgld > 0 : pgld = pgld / (10 ** 18)
@@ -214,13 +229,22 @@ def handle_wallet(walletID, eth_to_usd_price, row):
 
 
 def main():
-    file_path = pn.select_addresses_file()
+    # Create an argument parser
+    parser = argparse.ArgumentParser(description="This script fetches all the inventory for a specific set of wallets and outputs it into a pretty excel sheet")
+
+    # Add the --max_threads argument with a default value of 3
+    parser.add_argument("--max_threads", type=int, default=MAX_THREADS, help=f"Maximum number of threads (default: {MAX_THREADS})")
+
+    # Parse the command-line arguments
+    args = parser.parse_args()
+
+    file_path = pn.select_file(prefix="addresses_",file_extension=".txt")
     addresses = pn.read_addresses(file_path)
     user_name = file_path.split('_')[1].split('.')[0]
     formatted_output = pn.format_addresses_for_query(addresses)
 
     # Call the function to fetch user inputs and set global variables
-    # fetch_user_inputs()
+    fetch_user_inputs()
 
     start_time = time.time()
 
@@ -250,7 +274,7 @@ def main():
     print(f"Building Data - execution time: {execution_time:.2f} seconds")
 
     start_time = time.time()
-    excel_sheet(json.dumps(data, indent=4), addresses, f"inventory_{user_name}")
+    excel_sheet(json.dumps(data, indent=4), addresses, f"inventory_{user_name}", args.max_threads)
     end_time = time.time()
     execution_time = end_time - start_time
     print(f"Creating excel from data - execution time: {execution_time:.2f} seconds") 

@@ -221,23 +221,31 @@ def eth_to_usd(eth_amount, round_result=True):
 
 # returns the Nova eth balance from an address
 def get_nova_eth_balance(address):
-    eth_balance_wei = Web3Singleton.get_web3_Nova().eth.get_balance(to_web3_address(address))
-    if eth_balance_wei == 0 :
-        eth_balance_wei = Web3Singleton.get_web3_NovaAlt().eth.get_balance(to_web3_address(address))
-    eth_balance_eth = float(Web3Singleton.get_web3_Nova().from_wei(eth_balance_wei, 'ether'))
-    return eth_balance_eth
+    try:
+        eth_balance_wei = Web3Singleton.get_web3_Nova().eth.get_balance(to_web3_address(address))
+        if eth_balance_wei == 0 :
+            eth_balance_wei = Web3Singleton.get_web3_NovaAlt().eth.get_balance(to_web3_address(address))
+        eth_balance_eth = float(Web3Singleton.get_web3_Nova().from_wei(eth_balance_wei, 'ether'))
+        return eth_balance_eth
+    except Exception as e:
+        error_type = type(e).__name__
+        print(f"{C_RED}**get_nova_eth_balance -> Exception: {e} - {error_type}{C_END}")
+        return None    
 
 
 def get_energy(address, long_form=False):
-    # Replace this with your logic to get PGLD for the address
-    pgld_amount = 0  # Replace with the actual PGLD amount
-    function_name = 'getEnergy'
-    function_args = [int(address,16)]
-    result = Web3Singleton.get_EnergySystem().functions[function_name](*function_args).call()    
-    if long_form:
-        return result
-    else:
-        return round((result /  10 ** 18), 0)  
+    try:
+        function_name = 'getEnergy'
+        function_args = [int(address,16)]
+        result = Web3Singleton.get_EnergySystem().functions[function_name](*function_args).call()    
+        if long_form:
+            return result
+        else:
+            return round((result /  10 ** 18), 0) 
+    except Exception as e:
+        error_type = type(e).__name__
+        print(f"{C_RED}**get_energy -> Exception: {e} - {error_type}{C_END}")
+        return None
 
 
 # Global variable to store the address to key mapping
@@ -495,10 +503,12 @@ def select_wallet(csv_file):
 
 
 # Function to list .csv files in a directory
-def list_csv_files(path):
-    csv_files = [f for f in os.listdir(path) if f.endswith(".csv")]
-    return csv_files
+def list_csv_files(path, prefix=""):
+    return list_files(path, prefix, ".csv")
 
+# function to list files in path with prefix and file_type optional
+def list_files(path, prefix="", file_type=""):
+    return [f for f in os.listdir(path) if f.endswith(file_type) and f.startswith(prefix)]
 
 # Function to display a menu and select a .csv file
 def _select_directory_file(dir_files):
@@ -515,11 +525,11 @@ def _select_directory_file(dir_files):
     else:
         return None
 
-def select_csv_file():
+def select_csv_file(prefix=""):
     directory_path = data_path("")
 
     # List .csv files in the directory
-    csv_files = list_csv_files(directory_path)
+    csv_files = list_files(directory_path, prefix, ".csv")
 
     if not csv_files:
         print("No .csv files found in the specified directory.")
@@ -531,21 +541,19 @@ def select_csv_file():
         return data_path(selected_csv_file)
     
 
-# Prompts the user to select an address file
-def select_addresses_file():
-    directory_path = data_path("")    
+def select_file(directory_path=data_path(""), prefix="", file_extension=""):
+    files = list_files(directory_path, prefix, file_extension)
 
-    address_files = [f for f in os.listdir(directory_path) if f.endswith(".txt") and f.startswith("addresses_")]
-
-    if not address_files:
-        print("No addresses_[name].txt files found in the specified directory.")
+    if not files:
+        if prefix == "":
+            print(f"No {file_extension} files in '{directory_path}'")
+        else:
+            print(f"No {prefix}[name]{file_extension} files in '{directory_path}'")
         return None
     else:
-        # Display and select a .csv file using the menu
-        selected_file = _select_directory_file(address_files)
+        selected_file = _select_directory_file(files)
         print(f"You selected: {selected_file}")
-        return data_path(selected_file)
-    
+        return f"{directory_path}{selected_file}"
 
 
 # Prompts the user to select an address file
