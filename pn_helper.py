@@ -151,12 +151,21 @@ class Web3Singleton:
 ######################################################
 
 # returns a full formed file path - useful to know where to find files
-def data_path(filename) :
+def data_path(filepath) :
     try:
-        return f"{personal_settings.relative_pn_data_path}{filename}"
+        return f"{personal_settings.relative_pn_data_path}{filepath}"
     except Exception as e:
         print(f"Error in data_path: {str(e)}")
-        return filename
+        return filepath
+
+
+# returns the path of an optional inventory data path, and the base if it doesn't exist
+def add_inventory_data_path(filename):
+    directory_path = data_path("inventory/")
+    if not os.path.exists(directory_path):
+        directory_path = data_path("")
+    return f"{directory_path}{filename}"
+
 
 
 # gets the JSON data from a query to the pirate nation graph
@@ -537,3 +546,20 @@ def select_addresses_file():
         print(f"You selected: {selected_file}")
         return data_path(selected_file)
     
+
+
+# Prompts the user to select an address file
+def select_xlsx_file():
+
+    directory_path = append_inventory_data_path("")
+
+    excel_files = [f for f in os.listdir(directory_path) if f.endswith(".xlsx")]
+
+    if not excel_files:
+        print("No .xlsx files found in the specified directory.")
+        return None
+    else:
+        # Display and select a .xslx file using the menu
+        selected_file = _select_directory_file(excel_files)
+        print(f"You selected: {selected_file}")
+        return f"{directory_path}/{selected_file}"

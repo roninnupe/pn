@@ -4,8 +4,11 @@ import pn_helper as pn
 
 app = Flask(__name__)
 
+excel_file = pn.select_xlsx_file()
+user_name = excel_file.split('_')[1].split('.')[0]
+
 # Load data from the Excel file and extract the 'imageUrl' and 'tokenId' columns
-data = pd.read_excel(pn.data_path("pn_pirates.xlsx"))
+data = pd.read_excel(excel_file)
 
 # Transform the image URLs to the IPFS gateway format
 def transform_url(url):
@@ -22,10 +25,13 @@ image_data = data.to_dict(orient='records')
 
 @app.route('/')
 def index():
+    html_file_name = pn.add_inventory_data_path(f"{user_name}.html")
+    print(html_file_name)
+
     html_content = render_template('index.html', image_data=image_data)
 
     # Save the HTML content to a file named 'pirate.html'
-    with open(pn.data_path('pirate.html'), 'w', encoding='utf-8') as file:
+    with open(html_file_name, 'w', encoding='utf-8') as file:
         file.write(html_content)
 
     return html_content

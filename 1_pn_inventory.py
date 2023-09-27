@@ -102,16 +102,10 @@ def excel_sheet(json_string, ordered_addresses, file_name_start):
     # Convert DataFrame to Excel
     # Versions of Pandas >= 1.3.0:
 
-    xlsx_inventory_data_path = pn.data_path("inventory")
-
     # smart logic to create filename based on parameter, 
     # and we will put the file in a subdirectory called inventory if it exists
     # otherwise it goes into the base directory
-    excel_file_name = f"{file_name_start}.xlsx"
-    if os.path.exists(xlsx_inventory_data_path):
-        excel_file_name = f"{xlsx_inventory_data_path}/{excel_file_name}"
-    else:
-        excel_file_name = pn.data_path(excel_file_name)
+    excel_file_name = pn.add_inventory_data_path(f"{file_name_start}.xlsx")
 
     xlWriter = pd.ExcelWriter(excel_file_name,engine='xlsxwriter',engine_kwargs={'options': {'strings_to_numbers': True}})
 

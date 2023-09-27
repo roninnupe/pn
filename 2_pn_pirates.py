@@ -1,3 +1,4 @@
+import os
 import time
 import pandas as pd
 from datetime import datetime, timedelta
@@ -26,7 +27,7 @@ def map_expertise(nft):
             trait['value'] = expertise_id_mapping[trait['value']]
 
 # Read data from a CSV file and create a dictionary mapping token IDs to rarity ranks.
-df = pd.read_csv('../pn data/rarity_scores_final.csv')
+df = pd.read_csv(pn.data_path('rarity_scores_final.csv'))
 
 df.tokenId = df.tokenId.astype(str)  # Ensure all token IDs are strings.
 tokenId_rarity_dict = dict(zip(df.tokenId, df.RarityRank))
@@ -92,7 +93,8 @@ def calculate_upgradable_level(nft):
 #---------------------------------------------------------
 
 # Step 1: Read addresses from a text file and create a dictionary mapping addresses to IDs.
-file_path = pn.data_path('addresses.txt')  
+file_path = pn.select_addresses_file()
+user_name = file_path.split('_')[1].split('.')[0]
 addresses = pn.read_addresses(file_path)
 formatted_output = pn.format_addresses_for_query(addresses)
 address_id_dict = {address: i+1 for i, address in enumerate(addresses)}
@@ -205,8 +207,15 @@ column_order = [
 # Step 7: Prepare and Format the Excel File
 
 # Load the Excel file
-file_name = '../pn data/pn_pirates.xlsx'
-xlWriter = pd.ExcelWriter(file_name,
+file_name_start = f"pirates_{user_name}"
+
+# smart logic to create filename based on parameter, 
+# and we will put the file in a subdirectory called inventory if it exists
+# otherwise it goes into the base directory
+excel_file_name = pn.add_inventory_data_path(f"pirates_{user_name}.xlsx")
+xlsx_inventory_data_path = pn.data_path("inventory")
+
+xlWriter = pd.ExcelWriter(excel_file_name,
                         engine='xlsxwriter',
                         engine_kwargs={'options': {'strings_to_numbers': True}})
 
@@ -255,4 +264,4 @@ xlWriter._save()
 
 end_time = time.time()
 execution_time = end_time - start_time
-print(f"Created {file_name} in {execution_time:.2f} seconds")    
+print(f"Created {excel_file_name} in {execution_time:.2f} seconds")    
