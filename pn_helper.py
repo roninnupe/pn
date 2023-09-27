@@ -551,7 +551,7 @@ def select_addresses_file():
 # Prompts the user to select an address file
 def select_xlsx_file():
 
-    directory_path = append_inventory_data_path("")
+    directory_path = add_inventory_data_path("")
 
     excel_files = [f for f in os.listdir(directory_path) if f.endswith(".xlsx")]
 
