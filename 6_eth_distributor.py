@@ -7,13 +7,13 @@ from termcolor import colored
 GAS_LIMIT = 50000
 
 # Get the sender address from the file (will default with no input if only one sender in file)
-sender_choice_file = pn.data_path("addresses.csv")
+sender_choice_file = pn.data_path("addresses_with_pk_3.csv")
 sender_data = pn.select_wallet(sender_choice_file)
 sender_addr = sender_data['address']
 sender_key = sender_data['key']
 
 # Load up the recipient addresses
-file_path = pn.data_path("eth_recipient_addresses.csv")
+file_path = pn.data_path("addresses_with_pk_3.csv")
 df = pd.read_csv(file_path)
 recipient_addresses = df['address'].tolist()
 recipient_count = len(recipient_addresses)

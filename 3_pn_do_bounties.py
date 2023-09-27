@@ -6,7 +6,7 @@ import pn_helper as pn
 from eth_utils import to_checksum_address
 from concurrent.futures import ThreadPoolExecutor
 
-MULTI_THREADED = True
+MULTI_THREADED = False
 MAX_THREADS = 10
 
 # The query used to get all bounties from the PN Grpah
@@ -54,7 +54,7 @@ def get_group_id_by_bounty_name(target_bounty_name):
         bounty_mappings_df = _bounty_mappings.get_mappings_df()
 
         # Filter the DataFrame for the specified bounty_name
-        result = bounty_mappings_df[bounty_mappings_df['bounty_name'] == target_bounty_name]
+        result = bounty_mappings_df[bounty_mappings_df['bounty_name'].str.strip().str.lower() == target_bounty_name.strip().lower()]
 
         # Check if any rows match the specified bounty_name
         if not result.empty:
@@ -62,10 +62,15 @@ def get_group_id_by_bounty_name(target_bounty_name):
             group_id = result.iloc[0]['group_id']
             return group_id
         else:
+            print("About to return none")
             return None  # No matching bounty_name found
+    except FileNotFoundError as e:
+        print(f"File not found: {str(e)}")
+        return None
     except Exception as e:
         print(f"An error occurred: {str(e)}")
         return None
+
 
 class PirateBountyMappings:
     _instance = None
@@ -259,7 +264,8 @@ def process_address(args, default_group_id, web3, bounty_contract, bounty_data, 
 
     buffer.append(f"\n   Wallet {wallet} has the following pirates: {pirate_ids}")
 
-    bounties_to_execute = {} # initialize a dictionary of bounties and pirates we want to execute
+    MAX_PIRATE_ON_BOUNTY = 20  
+    bounties_to_execute = {default_group_id: []} # initialize a dictionary of bounties and pirates we want to execute
 
     # Loop through the pirate_ids and load up bounties_to_execute
     for pirate_id in pirate_ids:
@@ -268,17 +274,19 @@ def process_address(args, default_group_id, web3, bounty_contract, bounty_data, 
             
         # use the default group_id if we don't find one, and only if we have specified a default group_id
         if bounty_group_id is None:
-            if default_group_id is None:
-                continue
-            else: 
-                bounty_group_id = default_group_id
+            bounty_group_id = default_group_id
             
         # Check if the bounty_group_id is already in the dictionary, if not, create an empty list
         if bounty_group_id not in bounties_to_execute:
             bounties_to_execute[bounty_group_id] = []
 
-        # Append the pirate_id to the list associated with the bounty_group_id
-        bounties_to_execute[bounty_group_id].append(pn.pirate_token_id_to_entity(pirate_id))
+        # Reconfirm its less than max pirate on the bounty and append it, fall back on the default if the main is full
+        if len(bounties_to_execute[bounty_group_id]) < MAX_PIRATE_ON_BOUNTY:
+            bounties_to_execute[bounty_group_id].append(pn.pirate_token_id_to_entity(pirate_id))
+        elif len(bounties_to_execute[default_group_id]) < MAX_PIRATE_ON_BOUNTY:
+            bounties_to_execute[default_group_id].append(pn.pirate_token_id_to_entity(pirate_id))
+        else:
+            buffer.append(f"{pn.C_RED}Rare edge case: skipping adding {pirate_id} to any bounties{pn.C_END}")
 
         #buffer.append(f"Pirate ID: {pirate_id}, Bounty Name: {bounty_name}, Group ID: {bounty_group_id}")
 

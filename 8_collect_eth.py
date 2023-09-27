@@ -5,12 +5,12 @@ from termcolor import colored
 GAS_LIMIT = 50000
 
 # Get the recipient address from the file (will default with no input if only one recipient in file)
-recipient_choice_file = pn.data_path("addresses.csv")
+recipient_choice_file = pn.data_path("addresses_with_pk_3.csv")
 recipient_data = pn.select_wallet(recipient_choice_file)
 recipient_addr = recipient_data['address']
 
 # get the collection addresses from the file
-collection_addresses_file = pn.data_path("addresses.csv")
+collection_addresses_file = pn.data_path("addresses_with_pk_3.csv")
 df = pd.read_csv(collection_addresses_file)
 
 total_sent_eth = 0
