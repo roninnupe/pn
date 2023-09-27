@@ -1,3 +1,4 @@
+import os
 import requests
 import json
 import math
@@ -29,7 +30,7 @@ def merge_data(data_list):
         merged_data["data"]["accounts"].extend(data["data"]["accounts"])
     return merged_data
 
-def excel_sheet(json_string, ordered_addresses):
+def excel_sheet(json_string, ordered_addresses, file_name_start):
     # Parse JSON data
     data = json.loads(json_string)
 
@@ -100,8 +101,19 @@ def excel_sheet(json_string, ordered_addresses):
 
     # Convert DataFrame to Excel
     # Versions of Pandas >= 1.3.0:
-    file_name = pn.data_path("pn_inventory.xlsx")
-    xlWriter = pd.ExcelWriter(file_name,engine='xlsxwriter',engine_kwargs={'options': {'strings_to_numbers': True}})
+
+    xlsx_inventory_data_path = pn.data_path("inventory")
+
+    # smart logic to create filename based on parameter, 
+    # and we will put the file in a subdirectory called inventory if it exists
+    # otherwise it goes into the base directory
+    excel_file_name = f"{file_name_start}.xlsx"
+    if os.path.exists(xlsx_inventory_data_path):
+        excel_file_name = f"{xlsx_inventory_data_path}/{excel_file_name}"
+    else:
+        excel_file_name = pn.data_path(excel_file_name)
+
+    xlWriter = pd.ExcelWriter(excel_file_name,engine='xlsxwriter',engine_kwargs={'options': {'strings_to_numbers': True}})
 
     # Export to Excel
     df.to_excel(xlWriter, index=False)
@@ -133,14 +145,17 @@ def excel_sheet(json_string, ordered_addresses):
 
     xlWriter._save()
 
-    # Also export to a same directory the csv to be stored in github
-    sums_df = pd.DataFrame([[None, None] + column_sums], columns=df.columns)
+    # Code to export a CSV copy to a directory called inventory only if you have that directory
+    if os.path.exists("inventory"):
+        
+        sums_df = pd.DataFrame([[None, None] + column_sums], columns=df.columns)
 
-    # Drop columns that are all NA from sums_df
-    sums_df = sums_df.dropna(axis=1, how='all')
+        # Drop columns that are all NA from sums_df
+        sums_df = sums_df.dropna(axis=1, how='all')
 
-    df = df._append(sums_df, ignore_index=True)
-    df.to_csv("pn_inventory.csv", index=False)
+        df = df._append(sums_df, ignore_index=True)
+
+        df.to_csv(f"inventory/{file_name_start}.csv", index=False)
 
 def handle_wallet(walletID, eth_to_usd_price, row):
     local_df = pd.DataFrame()
@@ -205,8 +220,9 @@ def handle_wallet(walletID, eth_to_usd_price, row):
 
 
 def main():
-    file_path = pn.data_path('addresses.txt')  
+    file_path = pn.select_addresses_file()
     addresses = pn.read_addresses(file_path)
+    user_name = file_path.split('_')[1].split('.')[0]
     formatted_output = pn.format_addresses_for_query(addresses)
 
     # Call the function to fetch user inputs and set global variables
@@ -240,7 +256,7 @@ def main():
     print(f"Building Data - execution time: {execution_time:.2f} seconds")
 
     start_time = time.time()
-    excel_sheet(json.dumps(data, indent=4), addresses)
+    excel_sheet(json.dumps(data, indent=4), addresses, f"inventory_{user_name}")
     end_time = time.time()
     execution_time = end_time - start_time
     print(f"Creating excel from data - execution time: {execution_time:.2f} seconds") 

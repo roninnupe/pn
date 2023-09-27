@@ -483,7 +483,7 @@ def select_wallet(csv_file):
             return None  # Wallet not found in the DataFrame
     except FileNotFoundError:
         return None  # File not found    
-    
+
 
 # Function to list .csv files in a directory
 def list_csv_files(path):
@@ -492,11 +492,11 @@ def list_csv_files(path):
 
 
 # Function to display a menu and select a .csv file
-def _select_csv_file(csv_files):
-    choices = [{"name": file} for file in csv_files]
+def _select_directory_file(dir_files):
+    choices = [{"name": file} for file in dir_files]
     questions = [
         questionary.select(
-            "Select a .csv file:",
+            "Select a file:",
             choices=choices,
         ).ask()
     ]
@@ -517,6 +517,23 @@ def select_csv_file():
         return None
     else:
         # Display and select a .csv file using the menu
-        selected_csv_file = _select_csv_file(csv_files)
+        selected_csv_file = _select_directory_file(csv_files)
         print(f"You selected: {selected_csv_file}")
         return data_path(selected_csv_file)
+    
+
+# Prompts the user to select an address file
+def select_addresses_file():
+    directory_path = data_path("")    
+
+    address_files = [f for f in os.listdir(directory_path) if f.endswith(".txt") and f.startswith("addresses_")]
+
+    if not address_files:
+        print("No addresses_[name].txt files found in the specified directory.")
+        return None
+    else:
+        # Display and select a .csv file using the menu
+        selected_file = _select_directory_file(address_files)
+        print(f"You selected: {selected_file}")
+        return data_path(selected_file)
+    
