@@ -1,13 +1,13 @@
 import argparse
-import math
 import time
 import questionary
 import pandas as pd
 import pn_helper as pn
 from eth_utils import to_checksum_address
 from concurrent.futures import ThreadPoolExecutor
+from ratelimit import limits, sleep_and_retry
 
-MAX_THREADS = 10
+MAX_THREADS = 2
 
 # The query used to get all bounties from the PN Grpah
 bounty_query = """
@@ -264,19 +264,15 @@ def process_address(args, default_group_id, default_bounty_name, web3, bounty_co
     buffer.append(f"{pn.C_GREEN}---------------------------------------------------------------------------{pn.C_END}")
 
     # read the activeBounties for the address
-    function_name = 'activeBountyIdsForAccount'
-    function_args = [address]
-    result = bounty_contract.functions[function_name](*function_args).call()
-    end_time = time.time()
-    execution_time = end_time - start_time
-
+    result, execution_time = rate_limited_active_bounty_ids(bounty_contract, address)
+    
     buffer.append(f"\n   Active Bounty IDs: {result}")
     buffer.append(f"   fetched in {execution_time:.2f} seconds\n")
 
     # handle ending of bounties if we have the end flag set
     if args.end:
         for active_bounty_id in result:
-            num_ended_bounties += end_bounty(web3, bounty_contract, address, private_key, active_bounty_id, buffer)        
+            num_ended_bounties += rate_limited_end_bounty(web3, bounty_contract, address, private_key, active_bounty_id, buffer)        
 
 
     # if we don't have start bounties set then continue and skip all the remaining code below
@@ -329,7 +325,7 @@ def process_address(args, default_group_id, default_bounty_name, web3, bounty_co
         bounty_id = int(hex_value, 16)   
         bounty_name = get_bounty_name_by_group_id(group_id)
 
-        num_started_bounties += start_bounty(web3, bounty_contract, address, private_key, bounty_name, bounty_id, entity_ids, buffer)
+        num_started_bounties += rate_limited_start_bounty(web3, bounty_contract, address, private_key, bounty_name, bounty_id, entity_ids, buffer)
         # Delay to allow the network to update the nonce
         if len(bounties_to_execute) > 1: time.sleep(1)              
 
@@ -359,8 +355,26 @@ def get_default_bounty():
     return selected_group_id, selected_bounty_name
 
 
+# Define rate limits (e.g., 5 calls per second)
+@limits(calls=10, period=1)
+def rate_limited_active_bounty_ids(bounty_contract, address):
+    start_time = time.time()
 
-def start_bounty(web3, contract_to_write, address, private_key, bounty_name, bounty_id, pirates, buffer):
+    # Your code here
+    function_name = 'activeBountyIdsForAccount'
+    function_args = [address]
+    result = bounty_contract.functions[function_name](*function_args).call()
+
+    end_time = time.time()
+    execution_time = end_time - start_time
+
+    return result, execution_time
+
+
+
+# Define rate limits (e.g., 2 calls per second)
+@limits(calls=10, period=1)
+def rate_limited_start_bounty(web3, contract_to_write, address, private_key, bounty_name, bounty_id, pirates, buffer):
     buffer.append(f"   Sending {pn.C_CYAN}{len(pirates)}{pn.C_END} pirate(s) on {pn.C_CYAN}'{bounty_name}'{pn.C_END}: {bounty_id}")
     txn_dict = {
         'from': address,
@@ -381,8 +395,9 @@ def start_bounty(web3, contract_to_write, address, private_key, bounty_name, bou
         buffer.append(f"   -> {pn.C_RED}**Error startBounty{pn.C_END}: {e} - {error_type}")
         return 0
 
-
-def end_bounty(web3, contract_to_write, address, private_key, bounty_id, buffer):
+# Define rate limits (e.g., 2 calls per second)
+@limits(calls=10, period=1)
+def rate_limited_end_bounty(web3, contract_to_write, address, private_key, bounty_id, buffer):
     buffer.append(f"   Ending active_bounty_id: {bounty_id}")
     txn_dict = {
         'from': address,
