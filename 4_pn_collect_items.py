@@ -16,7 +16,8 @@ def parse_arguments():
 
     return parser.parse_args()
 
-def batch_transfer(web3, contract, recipient, operator, wallet_address, token_ids, amounts):
+#batch_transfer(web3, game_items_contract, recipient_address, operator_address, private_key, wallet_address, token_ids, amounts)
+def batch_transfer(web3, contract, recipient, operator, private_key, wallet_address, token_ids, amounts):
  
     try:
         # Build a transaction dictionary
@@ -29,8 +30,7 @@ def batch_transfer(web3, contract, recipient, operator, wallet_address, token_id
             'data': contract.encodeABI(fn_name='safeBatchTransferFrom', args=[wallet_address, recipient, token_ids, amounts, b''])
             }
 
-        print(f"{token_ids}\n\n{amounts}\n\n")
-        print(txn_dict)
+        print(f"\ntokenIds:{token_ids}\quantity:{amounts}\n")
 
         # Estimate the gas for this specific transaction
         txn_dict['gas'] = web3.eth.estimate_gas(txn_dict)
@@ -38,7 +38,6 @@ def batch_transfer(web3, contract, recipient, operator, wallet_address, token_id
         print(f"Gas: {txn_dict['gas']}")
 
         # Sign the transaction using your private key
-        private_key = pn.find_key_for_address(operator)
         signed_txn = web3.eth.account.sign_transaction(txn_dict, private_key=private_key)
 
         # Send the transaction
@@ -48,40 +47,20 @@ def batch_transfer(web3, contract, recipient, operator, wallet_address, token_id
         # Wait for the transaction to be mined, and get the transaction receipt
         txn_receipt = web3.eth.wait_for_transaction_receipt(txn_hash)
 
-        print(f'Done sending from: {wallet_address} -to: {recipient}')
-        print("--------------------------------")
+        print(f'{pn.C_GREEN}Done sending{pn.C_END} from: {wallet_address} -to: {recipient}')
+        print(f"{pn.C_BLUE}-------------------------------------------------------------------{pn.C_END}")
 
     except Exception as e:
-        print("  **Error with transaction:", e)
+        print(f"  {pn.C_RED}**Error with transaction: {e}{pn.C_END}")
 
 
 def main():
     args = parse_arguments()
 
-    df_config = pd.read_csv(pn.data_path("pn_collect_item_config.csv"))
-    pn.load_address_key_mapping(pn.data_path("addresses.csv"))
-
-    print("Available operators:")
-    for index, row in df_config.iterrows():
-        print(f"{index + 1}. {row['name']} - {row['operator_address']}")   
-    
-    # Get user input for the bounty they are interested in
-    selected_index = int(input("Please enter the operator you're interested in: ")) - 1
-
-    # Validate user input
-    if selected_index < 0 or selected_index >= len(df_config):
-        print("Invalid selection. Exiting.")
-        exit()    
-
-     # Find the corresponding hex value for the selected bounty_name
-    selected_operator = df_config.iloc[selected_index]['operator_address']
-    selected_recipients = pn.data_path(df_config.iloc[selected_index]['recipient_file'])    
-    selected_senders =  pn.data_path(df_config.iloc[selected_index]['sender_file'])       
-
-    print("Loading data:")
-    print(f"Operator: {selected_operator}")
-    print(f"Recipients file: {selected_recipients}")
-    print(f"Senders file: {selected_senders}")  
+    print(f"{pn.C_YELLOW}Sender(s) addresses .csv{pn.C_END}")
+    selected_senders = pn.select_file(prefix="addresses_pk",file_extension=".csv")
+    print(f"{pn.C_YELLOW}Recipients(s) addresses .csv{pn.C_END}")
+    selected_recipients = pn.select_file(prefix="addresses", file_extension=".csv")
 
     # Load data from JSON
     with open(pn.data_path("data_tokenId_items.json"), 'r') as f:
@@ -124,21 +103,23 @@ def main():
             continue
 
         #extract the sender wallet name for output to display to make sure you're sending from where you want to
-        sender_wallet_name = filtered_sender_df['wallet_name'].iloc[0]
+        sender_wallet_name = filtered_sender_df['wallet'].iloc[0]
+        private_key = filtered_sender_df['key'].iloc[0]      
         
         #grab the recipeint for this cycle
         current_recipient = next(recipient_cycle).lower()
 
         #extract the recipient wallet name for output to display to make sure you know where you are sending to
         filtered_recipient_df = df_recipients[df_recipients['address'].str.lower() == current_recipient]        
-        recipient_wallet_name = filtered_recipient_df['wallet_name'].iloc[0]
+        recipient_wallet_name = filtered_recipient_df['wallet'].iloc[0]
 
         recipient_address = to_checksum_address(current_recipient)
         wallet_address = to_checksum_address(current_wallet)  
-        operator_address = to_checksum_address(selected_operator.lower())
+        operator_address = wallet_address #to_checksum_address(selected_operator.lower())
+        #private_key = pn.find_key_for_address(operator_address)
 
         token_ids = []
-        token_display = []
+        token_name = []
         amounts = []
         
         for item in row.index:
@@ -152,52 +133,79 @@ def main():
                     else:
                         token_ids.append(token_id)
                         amounts.append(cellValue)
-                        token_display.append(item)
-                        token_display.append(cellValue)
+                        token_name.append(item)
+
         if not token_ids or not amounts:
             print(f"No items found for wallet address: {sender_wallet_name} - {wallet_address}")
             continue
     
         if not args.automate :
+            skip_transfer = False  # Initialize a flag to determine if the transfer should be skipped
 
-            print(f"We are about to attempt to send items:\n\n{token_display}\n\n\tfrom: {sender_wallet_name} - {wallet_address}\n\n\tto: {recipient_wallet_name} - {recipient_address}\n\n")
-            user_input = input("Do you want to proceed? (y/n -or optionally modify values with comma separated list):")
-            if user_input.lower() == 'n':
-                print("Skipping...")    
-            else:
-                if "," in user_input:
-                    print(user_input)
-                    parsed_user_input = user_input.split(',')
-                    for i in range(0, len(parsed_user_input), 2):
-                        item1 = parsed_user_input[i]
-                        item2 = parsed_user_input[i+1] if i+1 < len(parsed_user_input) else None                        
-                        try:
-                            token_id = item_to_tokenId[item1.lower()]
-                            revised_value = int(item2)
-                            index_to_replace = token_ids.index(token_id)
-                            if revised_value == 0:
-                                token_ids.pop(index_to_replace)
-                                amounts.pop(index_to_replace)
-                                print(f"{item1} has been removed from send list")
-                            elif revised_value <= amounts[index_to_replace] :
-                                amounts[index_to_replace] = revised_value
-                                print(f"{item1} has been modifed to {item2}")
-                            else:
-                                 print(f"{item1} has NOT been modified")
+            while True:
+                # beginning
+                print(f"{pn.C_CYAN}We are about to attempt to send{pn.C_END}:\n")
+                print_token_amount_pairs(token_name, amounts)
+                print(f"\nfrom: {sender_wallet_name} - {wallet_address}\nto: {recipient_wallet_name} - {recipient_address}\n")
+                print(f"{pn.C_YELLOW}Press {pn.C_CYAN}enter{pn.C_END}{pn.C_YELLOW} to proceed{pn.C_END}")
+                print(f"   Press {pn.C_CYAN}s{pn.C_END} to skip")
+                print(f"   Press {pn.C_CYAN}x{pn.C_END} to exit")
+                print(f"   OR modify values with commas separated list (example: {pn.C_CYAN}Wood,3,Iron Ore,5{pn.C_END})")
+                user_input = input("   :")
+                if user_input.lower() == 's':
+                    print("Skipping...")
+                    skip_transfer = True
+                    break
+                if user_input.lower() == 'x':
+                    exit()    
+                else:
+                    if "," in user_input:
+                        parsed_user_input = user_input.split(',')
+                        for i in range(0, len(parsed_user_input), 2):
+                            item1 = parsed_user_input[i]
+                            item2 = parsed_user_input[i+1] if i+1 < len(parsed_user_input) else None                        
+                            try:
+                                token_id = item_to_tokenId[item1.lower()]
+                                revised_value = int(item2)
+                                index_to_replace = token_ids.index(token_id)
+                                if revised_value == 0:
+                                    token_ids.pop(index_to_replace)
+                                    token_name.pop(index_to_replace)
+                                    amounts.pop(index_to_replace)
+                                    print(f"\n  {pn.C_MAGENTA}x{item1} has been removed from send list{pn.C_END}\n")
+                                elif revised_value <= amounts[index_to_replace] :
+                                    amounts[index_to_replace] = revised_value
+                                    print(f"\n  {pn.C_GREEN}{item1} has been modifed to {item2}{pn.C_GREEN}\n")
+                                else:
+                                    print(f"\n  {pn.C_RED}{item1} has NOT been modified{pn.C_RED}\n")
                             
-                        except ValueError:
-                            print(f"{item1} is not found in the list")
-                    print("Press Enter to Continue...")
-                    input()
-                
-                batch_transfer(web3, game_items_contract, recipient_address, operator_address, wallet_address, token_ids, amounts)
+                            except ValueError:
+                                print(f"\n   {pn.C_RED}{item1} is not found in the list{pn.C_END}\n")
+                    else:
+                        print(f"\n{pn.C_RED}   Invalid input, try again.{pn.C_END}\n")
+                        #go back to beginning with revised amounts
+
+            if not skip_transfer:    
+                batch_transfer(web3, game_items_contract, recipient_address, operator_address, private_key, wallet_address, token_ids, amounts)
         else:
-            batch_transfer(web3, game_items_contract, recipient_address, operator_address, wallet_address, token_ids, amounts)
+            batch_transfer(web3, game_items_contract, recipient_address, operator_address, private_key, wallet_address, token_ids, amounts)
     
-            delay_seconds = random.uniform(15.0, 35.0)
+            delay_seconds = random.uniform(3.0, 5.0)
             print(f"Waiting for {delay_seconds:.2f} seconds...")            
             time.sleep(delay_seconds)
 
+def print_token_amount_pairs(token_name, amounts):
+    if len(token_name) != len(amounts):
+        print("Error: Both lists must be of equal length")
+        return
+
+    max_token_length = max(len(name) for name in token_name)
+    
+    print(f"{'Token Name':<{max_token_length + 5}}Amount")
+    print("-" * (max_token_length + 5 + 10))
+    
+    for i in range(len(token_name)):
+        print(f"{token_name[i]:<{max_token_length + 5}}{amounts[i]}")
 
 if __name__ == "__main__":
     main()    

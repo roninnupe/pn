@@ -73,7 +73,7 @@ def fetch_data(address, url):
     return response.json()
 
 def main():
-    file_path = pn.data_path('addresses.txt')  
+    file_path = pn.select_file(prefix="addresses_",file_extension=".txt")
     addresses = pn.read_addresses(file_path)
     url = pn.URL_PIRATE_NATION_GRAPH_API
 
