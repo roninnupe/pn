@@ -90,6 +90,26 @@ def calculate_upgradable_level(nft):
     else:
         nft['traits'].append({'metadata': {'name': 'to next'}, 'value': xp_needed})
 
+
+# merges in price data into a source data frame
+def merge_price_data(source_df, price_data_file=pn.data_path('pirate_price.csv')):
+    # Check if the CSV file exists
+    if os.path.exists(price_data_file):
+        # Load the price data from the CSV file
+        price_df = pd.read_csv(price_data_file)
+
+        # Create a dictionary to map tokenId to price
+        price_mapping = dict(zip(price_df['tokenId'], price_df['Price']))
+
+        # Iterate through the list of dictionaries and add price information
+        for item in source_df:
+            tokenId = item.get('tokenId')
+            if tokenId is not None:
+                item['Price'] = price_mapping.get(int(tokenId), None)
+
+    return source_df
+    
+
 #---------------------------------------------------------
 
 # Step 1: Read addresses from a text file and create a dictionary mapping addresses to IDs.
@@ -170,6 +190,9 @@ else:
 for row in data_to_export:
     row["#"] = address_id_dict[row["address"]]
 
+# Step 4.5 merge price data
+data_to_export = merge_price_data(data_to_export)
+
 # Step 5: Sort data_to_export by this number since it comes out of the graph out of order
 data_to_export_sorted = sorted(data_to_export, key=lambda x: x['#'])
 
@@ -179,6 +202,7 @@ column_order = [
     "#",
     "address",
     "tokenId",
+    "Price",
     "Character Type",
     "level",
     "potential",
@@ -238,8 +262,12 @@ average_level = df_to_export['level'].mean()
 average_level_rounded = round(average_level, 2)
 num_rows_used = df_to_export['level'].count()
 
+# Calculate the average of the price
+average_price = df_to_export['Price'].mean()
+average_price_rounded = round(average_price, 4)
+
 print("------------------------------------------------------")
-print(f"The average level of {num_rows_used} pirates analyzed is {average_level_rounded:.2f}")
+print(f"{num_rows_used} pirates with {average_level_rounded:.2f} average level, {average_price_rounded:.4f} average price")
 print("------------------------------------------------------")
 
 # Export to Excel
