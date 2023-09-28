@@ -38,25 +38,10 @@ def make_query(address):
 def main():
     args = parse_arguments()
 
-    df_config = pd.read_csv(pn.data_path("pn_collect_item_config.csv"))
-    pn.load_address_key_mapping(pn.data_path("addresses.csv"))
-
-    print("Available operators:")
-    for index, row in df_config.iterrows():
-        print(f"{index + 1}. {row['name']} - {row['operator_address']}")   
-    
-    # Get user input for the bounty they are interested in
-    selected_index = int(input("Please enter the number corresponding to the bounty you're interested in: ")) - 1
-
-    # Validate user input
-    if selected_index < 0 or selected_index >= len(df_config):
-        print("Invalid selection. Exiting.")
-        exit()    
-
-     # Find the corresponding hex value for the selected bounty_name
-    selected_operator = df_config.iloc[selected_index]['operator_address']
-    selected_recipients = pn.data_path(df_config.iloc[selected_index]['recipient_file'])     
-    selected_senders = pn.data_path(df_config.iloc[selected_index]['sender_file'])         
+    print(f"{pn.C_YELLOW}Sender(s) addresses .csv{pn.C_END}")
+    selected_senders = pn.select_file(prefix="addresses_pk",file_extension=".csv")
+    print(f"{pn.C_YELLOW}Recipients(s) addresses .csv{pn.C_END}")
+    selected_recipients = pn.select_file(prefix="addresses", file_extension=".csv")  
 
     leave_behind_min = args.leave_behind_min
     leave_behind_max = args.leave_behind_max
@@ -66,13 +51,12 @@ def main():
     min_move = args.min_move * X_PGLD_LONG
 
     # Now you can use these variables in your script as needed.
-    print("Operator Address:", selected_operator)   
     print("Receiver CSV File:", selected_recipients)
     print("Sender CSV File:", selected_senders)
     print("Leave Behind Min:", leave_behind_min)
     print("Leave Behind Max:", leave_behind_max)
     print("Min Move Amount:", args.min_move)
-    print("----------------------------------------------------------------------------------------------------------------------------------------")
+    print(f"{pn.C_GREEN}----------------------------------------------------------------------------------------------------------------------------------------{pn.C_END}")
     
     #grab the arg wlletfiles of senders
     df_senders = pd.read_csv(selected_senders)
@@ -90,27 +74,30 @@ def main():
     for index, row in df_senders.iterrows():
 
         # grab the current wallet in the data to potentially be transferred
-        wallet_name = row['wallet_name']
-        address = row['address'].lower()
+        wallet_name = row['wallet']
+        sender_address = row['address'].lower()
+        private_key = row['key']
 
-        query = make_query(address)
+        query = make_query(sender_address)
         json_data = pn.get_data(query)
         
         for account in json_data['data']['accounts']:      
             
-            print(json_data)
             # Set PGLD value
             pgld = 0
 
             if 'currencies' in account and len(account['currencies']) > 0:
-                pgld = int(account['currencies'][0]['amount'])
-                print(f"{wallet_name} - We found {pgld / X_PGLD_LONG} gold.")
+                og_pgld = int(account['currencies'][0]['amount'])
+                pgld = og_pgld
 
                 #generate a random amount of gold to leave behind and adjust pgld to move
+                leave_behind = 0.0000001
                 if leave_behind_max > 0:
                     leave_behind = random.randint(leave_behind_min, leave_behind_max) * X_PGLD_LONG
                     pgld = pgld - leave_behind
-                    print(f"We plan to try to leave behind at least {leave_behind / X_PGLD_LONG} gold.")
+                    #print(f"{pn.C_MAGENTA}We plan to try to leave behind at least {leave_behind / X_PGLD_LONG} gold.{pn.C_END}")
+
+                print(f"{pn.C_CYAN}{wallet_name}{pn.C_END} - We found {pn.C_YELLOW}{og_pgld / X_PGLD_LONG} gold {pn.C_END}and are required to leave behind at least ~ {leave_behind / X_PGLD_LONG} gold")                    
 
                 #we must have a positve value for PGLD to try to leaveBehind
                 if pgld >= min_move:
@@ -118,37 +105,37 @@ def main():
                     #grab the recipeint for this cycle
                     current_recipient = next(recipient_cycle)
 
-                    print(f"We plan to move {pgld / X_PGLD_LONG} gold to: {current_recipient}")
+                    print(f"\n   We plan to{pn.C_GREEN} TRANSFER{pn.C_YELLOW} {pgld / X_PGLD_LONG} gold{pn.C_END} to: {current_recipient}\n")
                     if args.automate:
-                        transfer_PGLD(web3, PGLD_contract, current_recipient, selected_operator, address, pgld)
-                        random_delay = random.uniform(1.5, 10.5)
+                        transfer_PGLD(web3, PGLD_contract, sender_address, private_key, current_recipient, pgld) 
+                        random_delay = random.uniform(1.5, 5.5)
                         print(f"\n\n...sleeping for {random_delay} seconds...\n\n")
                         time.sleep(random_delay)
 
                     else:
-                        user_input = input("Do you want to proceed? (y/n): ")
-                        if user_input.lower() == 'n':
+                        user_input = input(f"Press {pn.C_GREEN}'enter'{pn.C_END} to proceed or {pn.C_RED}'s'{pn.C_END} to skip: ")
+                        if user_input.lower() == 's':
                             print("Skipping...")
                         else:
-                            transfer_PGLD(web3, PGLD_contract, current_recipient, selected_operator, address, pgld)                
+                            transfer_PGLD(web3, PGLD_contract, sender_address, private_key, current_recipient, pgld)                
                 else:
-                    print("No gold to move")
-                    print("----------------------------------------------------------------------------------------------------------------------------------------")                    
+                    print(f"{pn.C_MAGENTA}= No gold to move{pn.C_END}")
+                    print(f"{pn.C_GREEN}----------------------------------------------------------------------------------------------------------------------------------------{pn.C_END}")                  
 
-def transfer_PGLD(web3, contract, recipient, operator, sender, pgld_amount):
+#ransfer_PGLD(web3, PGLD_contract, current_recipient, sender_address, private_key, sender_address, pgld)  
+def transfer_PGLD(web3, contract, sender, private_key, recipient, pgld_amount):
 
-    operator_address = to_checksum_address(operator.lower())
-    wallet_address = to_checksum_address(sender.lower())
+    sender_address = to_checksum_address(sender.lower())
     recipient_address = to_checksum_address(recipient.lower())
 
     # Build a transaction dictionary
     txn_dict = {
-        'from': operator_address,
+        'from': sender_address,
         'to': contract.address,
         'value': 0,
-        'nonce': web3.eth.get_transaction_count(operator_address),
+        'nonce': web3.eth.get_transaction_count(sender_address),
         'gasPrice': web3.eth.gas_price,
-        'data': contract.encodeABI(fn_name='transferFrom', args=[wallet_address, recipient_address, pgld_amount])
+        'data': contract.encodeABI(fn_name='transfer', args=[recipient_address, pgld_amount])
         } 
 
     try:                  
@@ -157,7 +144,7 @@ def transfer_PGLD(web3, contract, recipient, operator, sender, pgld_amount):
         txn_dict['gas'] = web3.eth.estimate_gas(txn_dict)
                     
         # Sign the transaction using your private key
-        private_key = pn.find_key_for_address(operator)
+        #private_key = pn.find_key_for_address(operator)
         signed_txn = web3.eth.account.sign_transaction(txn_dict, private_key=private_key)
                     
         # Send the transaction
