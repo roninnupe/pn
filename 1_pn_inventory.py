@@ -7,13 +7,14 @@ import pandas as pd
 from web3 import Web3
 import pn_helper as pn
 from concurrent.futures import ThreadPoolExecutor
+from ratelimit import limits, sleep_and_retry
 
 # Global boolean variables
 GET_ETH_BALANCE = True
 GET_SHIP_COUNT = True
 GET_ENERGY_BALANCE = True
 # Maximum number of threads you want to run in parallel.
-MAX_THREADS = 3
+MAX_THREADS = 2
 
 
 def fetch_user_inputs():
@@ -175,7 +176,7 @@ def handle_wallet(walletID, eth_to_usd_price, row):
 
     # Get the ETH balance
     if GET_ETH_BALANCE:
-        eth_balance_eth = pn.get_nova_eth_balance(address)      
+        eth_balance_eth = rate_limited_get_nova_eth_balance(address)      
         # if we get no nova eth back, stop trying to get future energy for accounts 
         if (eth_balance_eth == None):
             GET_ETH_BALANCE = False
@@ -184,7 +185,7 @@ def handle_wallet(walletID, eth_to_usd_price, row):
 
     # read the acrive energy for the address
     if GET_ENERGY_BALANCE:
-        energy = pn.get_energy(address)
+        energy = rate_limited_get_energy_balance(address)
         # if we get no energy back, stop trying to get future energy for accounts
         if(energy == None):
             GET_ENERGY_BALANCE = False
@@ -226,6 +227,17 @@ def handle_wallet(walletID, eth_to_usd_price, row):
         local_df.loc[address, name] = amount
 
     return local_df
+
+@limits(calls=10, period=1)
+def rate_limited_get_energy_balance(address):
+    energy = pn.get_energy(address)
+    return energy
+
+
+@limits(calls=10, period=1)
+def rate_limited_get_nova_eth_balance(address):
+    eth_balance_eth = pn.get_nova_eth_balance(address)
+    return eth_balance_eth
 
 
 def main():
