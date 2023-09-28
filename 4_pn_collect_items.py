@@ -30,7 +30,7 @@ def batch_transfer(web3, contract, recipient, operator, private_key, wallet_addr
             'data': contract.encodeABI(fn_name='safeBatchTransferFrom', args=[wallet_address, recipient, token_ids, amounts, b''])
             }
 
-        print(f"\ntokenIds:{token_ids}\quantity:{amounts}\n")
+        #print(f"\ntokenIds:{token_ids}\nquantity:{amounts}\n")
 
         # Estimate the gas for this specific transaction
         txn_dict['gas'] = web3.eth.estimate_gas(txn_dict)
@@ -188,9 +188,15 @@ def main():
             if not skip_transfer:    
                 batch_transfer(web3, game_items_contract, recipient_address, operator_address, private_key, wallet_address, token_ids, amounts)
         else:
+            print(f"{pn.C_BLUE}-------------------------------------------------------------------{pn.C_END}")
+            print(f"{pn.C_CYAN}Sending{pn.C_END} from: {sender_wallet_name} - {wallet_address}")
+            print(f"          to: {recipient_wallet_name} - {recipient_address}\n")
+            print_token_amount_pairs(token_name, amounts)
+            print("")
+
             batch_transfer(web3, game_items_contract, recipient_address, operator_address, private_key, wallet_address, token_ids, amounts)
     
-            delay_seconds = random.uniform(3.0, 5.0)
+            delay_seconds = random.uniform(1.0, 3.0)
             print(f"Waiting for {delay_seconds:.2f} seconds...")            
             time.sleep(delay_seconds)
 
