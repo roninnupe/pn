@@ -234,7 +234,7 @@ def main():
     else:
 
         for index, row in df_addressses.iterrows():
-            buffer, num_ended_bounties, num_started_bounties = process_address(args, default_group_id, web3, bounty_contract, bounty_data, row, False)
+            buffer, num_ended_bounties, num_started_bounties = process_address(args, default_group_id, default_bounty_name, web3, bounty_contract, bounty_data, row, False)
             ended_bounties += num_ended_bounties
             started_bounties += num_started_bounties
 
