@@ -1,4 +1,5 @@
 import argparse
+import math
 import time
 import questionary
 import pandas as pd
@@ -47,7 +48,10 @@ class BountyMappings:
     
 _bounty_mappings = BountyMappings()
 
-def get_group_id_by_bounty_name(target_bounty_name):
+def get_group_id_by_bounty_name(target_bounty_name, default_group_id):
+
+    # on the rare case the target_bounty_name is blank return the default
+    if target_bounty_name is None: return default_group_id
 
     try:
         bounty_mappings_df = _bounty_mappings.get_mappings_df()
@@ -61,14 +65,35 @@ def get_group_id_by_bounty_name(target_bounty_name):
             group_id = result.iloc[0]['group_id']
             return group_id
         else:
-            print("About to return none")
-            return None  # No matching bounty_name found
+            return default_group_id  # No matching bounty_name found return the defualt
     except FileNotFoundError as e:
         print(f"File not found: {str(e)}")
-        return None
+        return default_group_id
     except Exception as e:
         print(f"get_group_id_by_bounty_name({target_bounty_name}): An error occurred: {str(e)}")
-        return None
+        return default_group_id
+
+
+def get_bounty_name_by_group_id(group_id, default_bounty_name=""):
+    try:
+        bounty_mappings_df = _bounty_mappings.get_mappings_df()
+
+        # Filter the DataFrame for the specified group_id
+        result = bounty_mappings_df[bounty_mappings_df['group_id'] == group_id]
+
+        # Check if any rows match the specified group_id
+        if not result.empty:
+            # Get the bounty_name from the first matching row
+            bounty_name = result.iloc[0]['bounty_name']
+            return bounty_name
+        else:
+            return default_bounty_name  # No matching group_id found, return the default
+    except FileNotFoundError as e:
+        print(f"File not found: {str(e)}")
+        return default_bounty_name
+    except Exception as e:
+        print(f"get_bounty_name_by_group_id({group_id}): An error occurred: {str(e)}")
+        return default_bounty_name
 
 
 class PirateBountyMappings:
@@ -97,9 +122,12 @@ def get_bounty_for_token_id(token_id):
     matching_row = pirate_bounty_df[pirate_bounty_df['tokenId'] == token_id]
     
     if not matching_row.empty:
-        return matching_row.iloc[0]['Bounty']
-    else:
-        return None  # Token ID not found in the DataFrame
+        bounty = matching_row.iloc[0]['Bounty']
+        if isinstance(bounty, str):
+            return bounty
+        
+    return None  # Token ID not found in the DataFrame or bounty is not a string
+
 
 # return the bounty hex from the bounty data, using the group_id specified, and fits the proper number of pirates
 def get_bounty_hex(data, group_id, num_of_pirates):
@@ -170,7 +198,7 @@ def main():
     # Display available bounties to the user only if we have start flag set
     default_group_id = 0
     if args.start:
-        default_group_id = get_default_bounty_group_id()
+        default_group_id, default_bounty_name = get_default_bounty()
         print(f"{pn.C_GREEN}default_group_id:{pn.C_CYAN} {default_group_id}{pn.C_END}\n\n")
 
     # Initialize web3 with the PN
@@ -193,7 +221,7 @@ def main():
 
         with ThreadPoolExecutor(max_workers=args.max_threads) as executor:
             # Submit jobs to the executor
-            futures = [executor.submit(process_address, args, default_group_id, web3, bounty_contract, bounty_data, row, True) 
+            futures = [executor.submit(process_address, args, default_group_id, default_bounty_name, web3, bounty_contract, bounty_data, row, True) 
                 for index, row in df_addressses.iterrows()]
 
             # Collect results as they come in
@@ -216,7 +244,7 @@ def main():
     print(f"\nclaimed {ended_bounties} bounties and started {started_bounties} bounties in {execution_time:.2f} seconds")
 
 
-def process_address(args, default_group_id, web3, bounty_contract, bounty_data, row, is_multi_threaded):
+def process_address(args, default_group_id, default_bounty_name, web3, bounty_contract, bounty_data, row, is_multi_threaded):
 
     start_time = time.time()
 
@@ -271,11 +299,7 @@ def process_address(args, default_group_id, web3, bounty_contract, bounty_data, 
     # Loop through the pirate_ids and load up bounties_to_execute
     for pirate_id in pirate_ids:
         bounty_name = get_bounty_for_token_id(pirate_id)
-        bounty_group_id = get_group_id_by_bounty_name(bounty_name)
-            
-        # use the default group_id if we don't find one, and only if we have specified a default group_id
-        if bounty_group_id is None:
-            bounty_group_id = default_group_id
+        bounty_group_id = get_group_id_by_bounty_name(bounty_name, default_group_id)
             
         # Check if the bounty_group_id is already in the dictionary, if not, create an empty list
         if bounty_group_id not in bounties_to_execute:
@@ -303,8 +327,9 @@ def process_address(args, default_group_id, web3, bounty_contract, bounty_data, 
         # Convert hexadecimal string to base 10 integer
         # FYI, This is the bounty ID for the user-selected bounty_name  
         bounty_id = int(hex_value, 16)   
+        bounty_name = get_bounty_name_by_group_id(group_id)
 
-        num_started_bounties += start_bounty(web3, bounty_contract, address, private_key, bounty_id, entity_ids, buffer)
+        num_started_bounties += start_bounty(web3, bounty_contract, address, private_key, bounty_name, bounty_id, entity_ids, buffer)
         # Delay to allow the network to update the nonce
         if len(bounties_to_execute) > 1: time.sleep(1)              
 
@@ -316,26 +341,27 @@ def process_address(args, default_group_id, web3, bounty_contract, bounty_data, 
     return buffer, num_ended_bounties, num_started_bounties
 
 #Prompts the user to choose a bounty, and returns the respective group id
-def get_default_bounty_group_id():
+def get_default_bounty():
 
     print("Available bounties:")
     
     bounty_mappings_df = _bounty_mappings.get_mappings_df()
     
     # Create a list of choices for questionary
-    choices = [{"name": f"{index + 1}. {row['bounty_name']}", "value": row['group_id']} for index, row in bounty_mappings_df.iterrows()]
+    choices = [{"name": f"{index + 1}. {row['bounty_name']}", "value": (row['group_id'], row['bounty_name'])} for index, row in bounty_mappings_df.iterrows()]
 
     # Prompt the user to select a default bounty
-    selected_group_id = questionary.select(
+    selected_group_id, selected_bounty_name = questionary.select(
         "Please select the default bounty you're interested in:",
         choices=choices
     ).ask()
 
-    return selected_group_id
+    return selected_group_id, selected_bounty_name
 
 
-def start_bounty(web3, contract_to_write, address, private_key, bounty_id, pirates, buffer):
-    buffer.append(f"   Sending {len(pirates)} pirates on bounty_id: {bounty_id}")
+
+def start_bounty(web3, contract_to_write, address, private_key, bounty_name, bounty_id, pirates, buffer):
+    buffer.append(f"   Sending {pn.C_CYAN}{len(pirates)}{pn.C_END} pirate(s) on {pn.C_CYAN}'{bounty_name}'{pn.C_END}: {bounty_id}")
     txn_dict = {
         'from': address,
         'to': contract_to_write.address,
