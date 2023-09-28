@@ -191,8 +191,13 @@ def handle_wallet(walletID, eth_to_usd_price, row):
             GET_ENERGY_BALANCE = False
         else:
             local_df.loc[address,'Energy'] = energy
-        
-    pgld = float(currencies[0]['amount'])
+
+    try:
+        pgld = float(currencies[0]['amount'])
+    except IndexError:
+        print("The currencies list is empty.")
+        pgld = 0.0  # or some default value
+
     if pgld > 0 : pgld = pgld / (10 ** 18)
 
     if 'PGLD' not in local_df.columns:
