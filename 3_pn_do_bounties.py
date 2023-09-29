@@ -197,6 +197,7 @@ def main():
 
     # Display available bounties to the user only if we have start flag set
     default_group_id = 0
+    default_bounty_name = None
     if args.start:
         default_group_id, default_bounty_name = get_default_bounty()
         print(f"{pn.C_GREEN}default_group_id:{pn.C_CYAN} {default_group_id}{pn.C_END}\n\n")
