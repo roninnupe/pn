@@ -156,10 +156,9 @@ def excel_sheet(json_string, ordered_addresses, file_name_start, max_thread_coun
 
         df.to_csv(f"inventory/{file_name_start}.csv", index=False)
 
+
 def handle_wallet(walletID, eth_to_usd_price, row):
     global GET_ETH_BALANCE, GET_ENERGY_BALANCE
-
-    local_df = pd.DataFrame()
 
     address = row['address']
     currencies = row['currencies']
@@ -168,29 +167,32 @@ def handle_wallet(walletID, eth_to_usd_price, row):
 
     ship_types_count = {}
 
-    # Assign walletID
-    local_df.loc[address, 'walletID'] = walletID
-    local_df['address'] = None
-    local_df['address'] = local_df['address'].astype(str)
-    local_df.loc[address, 'address'] = address
+    # Initialize a dictionary to store data for the current wallet
+    wallet_data = {
+        'walletID': walletID,
+        'address': address,
+        'Nova $': None,
+        'Energy': None,
+        'PGLD': 0
+    }
 
     # Get the ETH balance
     if GET_ETH_BALANCE:
-        eth_balance_eth = rate_limited_get_nova_eth_balance(address)      
-        # if we get no nova eth back, stop trying to get future energy for accounts 
-        if (eth_balance_eth == None):
+        eth_balance_eth = rate_limited_get_nova_eth_balance(address)
+        # if we get no nova eth back, stop trying to get future energy for accounts
+        if (eth_balance_eth is None):
             GET_ETH_BALANCE = False
         else:
-            local_df.loc[address,'Nova $'] =  round(eth_balance_eth * eth_to_usd_price, 2)
+            wallet_data['Nova $'] = round(eth_balance_eth * eth_to_usd_price, 2)
 
-    # read the acrive energy for the address
+    # read the active energy for the address
     if GET_ENERGY_BALANCE:
         energy = rate_limited_get_energy_balance(address)
         # if we get no energy back, stop trying to get future energy for accounts
-        if(energy == None):
+        if (energy is None):
             GET_ENERGY_BALANCE = False
         else:
-            local_df.loc[address,'Energy'] = energy
+            wallet_data['Energy'] = energy
 
     try:
         pgld = float(currencies[0]['amount'])
@@ -198,13 +200,10 @@ def handle_wallet(walletID, eth_to_usd_price, row):
         print("The currencies list is empty.")
         pgld = 0.0  # or some default value
 
-    if pgld > 0 : pgld = pgld / (10 ** 18)
+    if pgld > 0:
+        pgld = pgld / (10 ** 18)
 
-    if 'PGLD' not in local_df.columns:
-        local_df['PGLD'] = 0
-
-    # Add the PGLD value to the appropriate cell in the DataFrame
-    local_df.loc[address, 'PGLD'] = math.floor(pgld)
+    wallet_data['PGLD'] = math.floor(pgld)
 
     # get the ship counts for the account
     if GET_SHIP_COUNT:
@@ -215,23 +214,21 @@ def handle_wallet(walletID, eth_to_usd_price, row):
             ship_types_count[ship_type] += 1
 
         for ship_type in ship_types_count:
-            if ship_type not in local_df.columns:
-                local_df[ship_type] = 0
-            local_df.loc[address, ship_type] = ship_types_count[ship_type]
+            wallet_data[ship_type] = ship_types_count[ship_type]
 
     # Iterate over game items
     for game_item in gameItems:
         name = game_item['gameItem']['name']
         amount = int(game_item['amount'])
 
-        # If the item name is not a column in the DataFrame, add it
-        if name not in local_df.columns:
-            local_df[name] = 0
+        # Add the item to the wallet_data dictionary
+        wallet_data[name] = amount
 
-        # Add the item amount to the appropriate cell in the DataFrame
-        local_df.loc[address, name] = amount
+    # Create a DataFrame from the wallet_data dictionary
+    local_df = pd.DataFrame([wallet_data])
 
     return local_df
+
 
 @limits(calls=10, period=1)
 def rate_limited_get_energy_balance(address):
