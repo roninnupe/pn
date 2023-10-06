@@ -116,7 +116,7 @@ class PirateBountyMappings:
     
 _pirate_bounty_mappings = PirateBountyMappings()
 
-def get_bounty_for_token_id(token_id):
+def get_bounty_name_for_token_id(token_id, default_bounty_name):
     pirate_bounty_df = _pirate_bounty_mappings.get_mappings_df()
 
     matching_row = pirate_bounty_df[pirate_bounty_df['tokenId'] == token_id]
@@ -126,7 +126,7 @@ def get_bounty_for_token_id(token_id):
         if isinstance(bounty, str):
             return bounty
         
-    return None  # Token ID not found in the DataFrame or bounty is not a string
+    return default_bounty_name  # Token ID not found in the DataFrame or bounty is not a string
 
 
 # return the bounty hex from the bounty data, using the group_id specified, and fits the proper number of pirates
@@ -295,8 +295,20 @@ def process_address(args, default_group_id, default_bounty_name, web3, bounty_co
 
     # Loop through the pirate_ids and load up bounties_to_execute
     for pirate_id in pirate_ids:
-        bounty_name = get_bounty_for_token_id(pirate_id)
-        bounty_group_id = get_group_id_by_bounty_name(bounty_name, default_group_id)
+
+        pirate_contract_addr, pirate_token_id = pirate_id.split('-')
+        pirate_token_id = int(pirate_token_id)
+
+        print(f"{pirate_contract_addr}-{pirate_token_id}")
+
+        # if the contract address is the standard pirate
+        if(pirate_contract_addr == pn._contract_PirateNFT_addr):
+            bounty_name = get_bounty_name_for_token_id(pirate_token_id, default_bounty_name)
+            bounty_group_id = get_group_id_by_bounty_name(bounty_name, default_group_id)
+        # this must mean it's a starter pirate
+        else:
+            bounty_name = default_bounty_name
+            bounty_group_id = default_group_id
             
         # Check if the bounty_group_id is already in the dictionary, if not, create an empty list
         if bounty_group_id not in bounties_to_execute:
@@ -304,9 +316,9 @@ def process_address(args, default_group_id, default_bounty_name, web3, bounty_co
 
         # Reconfirm its less than max pirate on the bounty and append it, fall back on the default if the main is full
         if len(bounties_to_execute[bounty_group_id]) < MAX_PIRATE_ON_BOUNTY:
-            bounties_to_execute[bounty_group_id].append(pn.pirate_token_id_to_entity(pirate_id))
+            bounties_to_execute[bounty_group_id].append(pn.pirate_token_id_to_entity(pirate_token_id, address=pirate_contract_addr))
         elif len(bounties_to_execute[default_group_id]) < MAX_PIRATE_ON_BOUNTY:
-            bounties_to_execute[default_group_id].append(pn.pirate_token_id_to_entity(pirate_id))
+            bounties_to_execute[default_group_id].append(pn.pirate_token_id_to_entity(pirate_token_id, address=pirate_contract_addr))
         else:
             buffer.append(f"{pn.C_RED}Rare edge case: skipping adding {pirate_id} to any bounties{pn.C_END}")
 

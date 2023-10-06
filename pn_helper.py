@@ -281,6 +281,9 @@ def graph_id_to_tokenId(id_str: str) -> int:
     address, token_id = id_str.split('-')
     return int(token_id)
 
+def graph_id_to_address_and_tokenId(id_str: str) -> (str, int):
+    address, token_id = id_str.split('-')
+    return address, int(token_id)
 
 # Converts a graphID into it's entity ID
 def graph_id_to_entity(id_str: str) -> int:
@@ -303,7 +306,7 @@ def token_to_entity(address: str, token_id: int) -> int:
 
 # helper function to get a pirate tokenID and turn it into the entity 
 def pirate_token_id_to_entity(token_id:int, address=_contract_PirateNFT_addr):
-    return token_to_entity(_contract_PirateNFT_addr, token_id)
+    return token_to_entity(address, token_id)
 
 
 # Convert and entity to it's address and token representation
@@ -329,8 +332,9 @@ def make_pirate_query(address):
     return f"""
     {{
       accounts(where: {{address: "{address.lower()}"}}){{
-        nfts(where:{{nftType: "pirate"}}){{
+        nfts(where:{{or: [{{nftType: "pirate"}}, {{nftType: "starterpirate"}}]}}){{
             name
+            nftType
             id
             tokenId
             traits {{ 
@@ -444,7 +448,7 @@ def get_pirate_ids(address):
     json_data = get_data(query)
 
     pirate_ids = [
-        int(nft['tokenId'])
+        nft['id']
         for account in json_data['data']['accounts']
         for nft in account.get('nfts', [])  # Use .get() to handle the case where 'nfts' is missing
     ]

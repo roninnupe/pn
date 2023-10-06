@@ -122,16 +122,22 @@ address_id_dict = {address: i+1 for i, address in enumerate(addresses)}
 # GraphQL Query to get all the pirate data based off of all the addresses in the text file
 query = f"""
 {{
-    accounts(where: {{address_in: {formatted_output}}} ) {{
+    accounts(where: {{address_in: {formatted_output}}}) {{
         address
-        nfts(first: 1000, where: {{nftType: "pirate"}}) {{
+        nfts(first: 1000, where: {{
+            or: [
+                {{ nftType: "pirate" }},
+                {{ nftType: "starterpirate" }}
+            ]
+        }}) {{
             tokenId
+            nftType
             claimedMilestones {{
                 milestoneIndex
             }}
             imageUrl
             lastTransfer
-            traits {{ 
+            traits {{
                 value
                 metadata {{
                     name
@@ -162,20 +168,28 @@ if 'data' in data and 'accounts' in data['data']:
             for nft in nfts:
                 nft['address'] = address
 
+                current_token_id = nft['tokenId']
+
                 # map the named expertise on to the Pirate NFT data
                 map_expertise(nft)
 
-                # add the rarity rank on to the Pirate NFT data
-                add_rarity_rank(nft)
+                # Check if nftType is not 'starterpirate' before adding rarity rank and next claim date
+                if nft['nftType'] == 'pirate':
 
-                # add data around chest claims to the Pirate NFT data
-                add_next_claim_date(nft)
+                    # add the rarity rank on to the Pirate NFT data
+                    add_rarity_rank(nft)
+
+                    # add data around chest claims to the Pirate NFT data
+                    add_next_claim_date(nft)
+
+                elif nft['nftType'] == 'starterpirate':
+                    current_token_id = f"{current_token_id}000"
 
                 # add data about what it takes to get to the next level, and if the NFT can already be leveled up to the next level
                 calculate_upgradable_level(nft)
 
                 # create a row with data, and then iterate over additional traits to finalize the final data row
-                row = {'address': nft['address'], 'tokenId': nft['tokenId'], 'lastTransfer': nft['lastTransfer'], 'imageUrl':nft['imageUrl']}
+                row = {'address': nft['address'], 'tokenId': current_token_id, 'lastTransfer': nft['lastTransfer'], 'imageUrl':nft['imageUrl']}
                 for trait in nft['traits']:
                     row[trait['metadata']['name']] = trait['value']
 

@@ -13,10 +13,6 @@ from termcolor import colored
 from itertools import cycle
 from concurrent.futures import ThreadPoolExecutor
 
-
-
-token_contract = Web3.to_checksum_address("0x5b0661b61b0e947e7e49ce7a67abaf8eaafcdc1a")
-
 custom_style = Style.from_dict({
     'questionmark': '#E91E63 bold',
     'selected': '#673AB7 bold',
@@ -154,7 +150,7 @@ def start_quest(contract, address, key, quest):
     graph_id = get_pirate_id(address)
 
     # 2. Convert the graph ID to token ID
-    token_id = pn.graph_id_to_tokenId(graph_id)
+    token_contract, token_id = pn.graph_id_to_address_and_tokenId(graph_id)
 
     # 3. Use the token ID in the quest_params_data
     quest_params_data = {
@@ -162,7 +158,7 @@ def start_quest(contract, address, key, quest):
         'inputs': [
             {
                 'tokenType': 2,
-                'tokenContract': token_contract,
+                'tokenContract': Web3.to_checksum_address(token_contract),
                 'tokenId': token_id,
                 'amount': 1
             }
