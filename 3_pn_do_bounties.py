@@ -299,7 +299,7 @@ def process_address(args, default_group_id, default_bounty_name, web3, bounty_co
         pirate_contract_addr, pirate_token_id = pirate_id.split('-')
         pirate_token_id = int(pirate_token_id)
 
-        print(f"{pirate_contract_addr}-{pirate_token_id}")
+        #print(f"{pirate_contract_addr}-{pirate_token_id}")
 
         # if the contract address is the standard pirate
         if(pirate_contract_addr == pn._contract_PirateNFT_addr):
@@ -309,38 +309,48 @@ def process_address(args, default_group_id, default_bounty_name, web3, bounty_co
         else:
             bounty_name = default_bounty_name
             bounty_group_id = default_group_id
+
+        # as long as their is a valid bounty group id do the following
+        if bounty_group_id != 0:
             
-        # Check if the bounty_group_id is already in the dictionary, if not, create an empty list
-        if bounty_group_id not in bounties_to_execute:
-            bounties_to_execute[bounty_group_id] = []
+            # Check if the bounty_group_id is already in the dictionary, if not, create an empty list
+            if bounty_group_id not in bounties_to_execute:
+                bounties_to_execute[bounty_group_id] = []
 
-        # Reconfirm its less than max pirate on the bounty and append it, fall back on the default if the main is full
-        if len(bounties_to_execute[bounty_group_id]) < MAX_PIRATE_ON_BOUNTY:
-            bounties_to_execute[bounty_group_id].append(pn.pirate_token_id_to_entity(pirate_token_id, address=pirate_contract_addr))
-        elif len(bounties_to_execute[default_group_id]) < MAX_PIRATE_ON_BOUNTY:
-            bounties_to_execute[default_group_id].append(pn.pirate_token_id_to_entity(pirate_token_id, address=pirate_contract_addr))
-        else:
-            buffer.append(f"{pn.C_RED}Rare edge case: skipping adding {pirate_id} to any bounties{pn.C_END}")
+            # Reconfirm its less than max pirate on the bounty and append it, fall back on the default if the main is full
+            if len(bounties_to_execute[bounty_group_id]) < MAX_PIRATE_ON_BOUNTY:
+                bounties_to_execute[bounty_group_id].append(pn.pirate_token_id_to_entity(pirate_token_id, address=pirate_contract_addr))
+            elif len(bounties_to_execute[default_group_id]) < MAX_PIRATE_ON_BOUNTY:
+                bounties_to_execute[default_group_id].append(pn.pirate_token_id_to_entity(pirate_token_id, address=pirate_contract_addr))
+            else:
+                buffer.append(f"{pn.C_RED}Rare edge case: skipping adding {pirate_id} to any bounties{pn.C_END}")
 
-        #buffer.append(f"Pirate ID: {pirate_id}, Bounty Name: {bounty_name}, Group ID: {bounty_group_id}")
+            #buffer.append(f"Pirate ID: {pirate_id}, Bounty Name: {bounty_name}, Group ID: {bounty_group_id}")
 
     # Now loop over bounties to execute and execute them
     for group_id, entity_ids in bounties_to_execute.items():   
         # if no pirates to send, don't continue on with the remaining logic in this part of the loop
         num_of_pirates = len(entity_ids)
-        if num_of_pirates == 0: 
+
+        # if there or no pirates to send or the group_id is "0" which represents to do nothing, skip past the rest of the logic
+        if num_of_pirates == 0 or group_id == "0": 
             continue
 
         hex_value = get_bounty_hex(bounty_data, group_id, num_of_pirates)
-            
-        # Convert hexadecimal string to base 10 integer
-        # FYI, This is the bounty ID for the user-selected bounty_name  
-        bounty_id = int(hex_value, 16)   
-        bounty_name = get_bounty_name_by_group_id(group_id)
 
-        num_started_bounties += rate_limited_start_bounty(web3, bounty_contract, address, private_key, bounty_name, bounty_id, entity_ids, buffer)
-        # Delay to allow the network to update the nonce
-        if len(bounties_to_execute) > 1: time.sleep(1)              
+        try:    
+            # Convert hexadecimal string to base 10 integer
+            # FYI, This is the bounty ID for the user-selected bounty_name  
+            bounty_id = int(hex_value, 16)   
+            bounty_name = get_bounty_name_by_group_id(group_id)
+
+            num_started_bounties += rate_limited_start_bounty(web3, bounty_contract, address, private_key, bounty_name, bounty_id, entity_ids, buffer)
+            # Delay to allow the network to update the nonce
+            if len(bounties_to_execute) > 1: time.sleep(1) 
+        
+        except Exception as e:
+            # Handle the case where hex_value is not a valid hexadecimal string
+            print(f"Error converting hex_value '{hex_value}' to an integer: {e}")             
 
     end_time = time.time()
     execution_time = end_time - start_time
