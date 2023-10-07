@@ -46,7 +46,8 @@ _abi_URL_GameItems = "https://api-nova.arbiscan.io/api?module=contract&action=ge
 _contract_PGLD_addr = "0x3C2e532a334149D6a2E43523f2427e2fA187c5f0"
 _abi_URL_PGLD = "https://api-nova.arbiscan.io/api?module=contract&action=getabi&address=0x71BD13EF8f3D63F6924f48b6806D7000A355B353"
 
-_contract_BountySystem_addr = "0xE6FDcF808cD795446b3520Be6487917E9B82339a"
+_contract_BountySystem_addr = "0xE6FDcF808cD795446b3520Be6487917E9B82339a" #OG
+#_contract_BountySystem_addr = "0xDc1442FC3DE82937f71c71384C7B22b0558B80a7" #Unverified
 _abi_URL_BountySystem = "https://api-nova.arbiscan.io/api?module=contract&action=getabi&address=0x13A2C5f0fF0Afd50278f78a48dcE94e656187cf2"
 
 _contract_QuestSystem_addr = "0x8166F6be09f1da50B41dD22509a4B7573C67cEA6"
@@ -323,7 +324,7 @@ def entity_to_token(packed_result: int) -> (str, int):
     # Extract the token_id by right-shifting the packed_result by 160 bits
     token_id = packed_result >> 160
 
-    print(f"0x{address_str} - {token_id}")
+    #print(f"0x{address_str} - {token_id}")
 
     return ("0x" + address_str, token_id)  # Prefix the Ethereum address with '0x'
 
