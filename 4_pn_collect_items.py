@@ -89,7 +89,7 @@ def main():
 
     #specify a list of token_ids to not try and send. currently it's just soulbound tokens
     # note:81 is cutlass - skipping this for now
-    skip_token_ids = [80,100,101,102]
+    skip_token_ids = [80,100,101,102,209,210,211,212,213,214,215,216,217,218,219,220,221,222]
 
     # Iterate over rows in the dataframe
     for index, row in df.iterrows():
@@ -196,7 +196,7 @@ def main():
 
             batch_transfer(web3, game_items_contract, recipient_address, operator_address, private_key, wallet_address, token_ids, amounts)
     
-            delay_seconds = random.uniform(1.0, 3.0)
+            delay_seconds = random.uniform(0.25, 1.25)
             print(f"Waiting for {delay_seconds:.2f} seconds...")            
             time.sleep(delay_seconds)
 
