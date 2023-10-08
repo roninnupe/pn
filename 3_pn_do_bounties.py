@@ -781,11 +781,15 @@ def parse_arguments():
     
     parser.add_argument("--max_threads", type=int, default=MAX_THREADS, help="Maximum number of threads (default: 2)")
 
-    parser.add_argument("--delay_start", type=int, default=0, help="Delay in minutes before executing logic of the code (default: None)")    
+    parser.add_argument("--delay_start", type=int, default=0, help="Delay in minutes before executing logic of the code (default: 0)")    
     
-    parser.add_argument("--delay", type=int, default=0, help="Delay in minutes before executing the  code again code (default: None)")
+    parser.add_argument("--delay", type=int, default=0, help="Delay in minutes before executing the code again code (default: 0)")
 
-    parser.add_argument("--loop", action="store_true", default=False, help="Flag to enable looping")    
+    parser.add_argument("--loop", action="store_true", default=False, help="Flag to enable looping")   
+
+    parser.add_argument("--default_group_id", type=str, default=None, help="Specify the default bounty group id (default: None)") 
+
+    parser.add_argument("--csv_file", type=str, default=None, help="Specify the csv file of addresses (default: None)") 
 
     args = parser.parse_args()
     
@@ -822,20 +826,33 @@ def main():
     print("max_threads:", args.max_threads)
     print("loop:", args.loop)
     print("delay:", args.delay)
+    print("default_group_id:", args.default_group_id)
+    print("csv_file:", args.csv_file)
 
     # Display available bounties to the user only if we have start flag set
     default_group_id = 0
     default_bounty_name = None
 
     # Load data from csv file
-    csv_file = pn.select_file(prefix="addresses_pk", file_extension=".csv")
+    if args.csv_file: 
+        csv_file = pn.data_path(args.csv_file)
+    else:
+        csv_file = pn.select_file(prefix="addresses_pk", file_extension=".csv")
+    
     df_addressses = pd.read_csv(csv_file) #replace with your file_path
 
-    # Display available bounties to the user only if we have start flag set
-    default_group_id = 0
-    default_bounty_name = None
     if args.start:
-        default_group_id, default_bounty_name = get_default_bounty()
+
+        if args.default_group_id:
+
+            default_group_id = args.default_group_id
+            default_bounty_name = get_bounty_name_by_group_id(default_group_id)
+            print("default_bounty_name:", default_bounty_name)
+
+        else:
+            print("We are in the ELSE....")
+            default_group_id, default_bounty_name = get_default_bounty()
+
         print(f"{pn.C_GREEN}default_group_id:{pn.C_CYAN} {default_group_id}{pn.C_END}\n\n")
 
     # put in an initial starting delay
