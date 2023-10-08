@@ -1,4 +1,5 @@
 import argparse
+import sys
 import time
 import questionary
 import pandas as pd
@@ -6,8 +7,10 @@ import pn_helper as pn
 from eth_utils import to_checksum_address
 from concurrent.futures import ThreadPoolExecutor
 from ratelimit import limits, sleep_and_retry
+import traceback
 
 MAX_THREADS = 2
+MAX_PIRATE_ON_BOUNTY = 20  
 
 # The query used to get all bounties from the PN Grpah
 bounty_query = """
@@ -171,6 +174,58 @@ def get_bounty_name_by_group_id(group_id, default_bounty_name=""):
     except Exception as e:
         print(f"get_bounty_name_by_group_id({group_id}): An error occurred: {str(e)}")
         return default_bounty_name
+
+# Initialize a dictionary to store cached results
+bounty_limit_cache = {}
+
+def get_bounty_limit_by_group_id(group_id):
+    """
+    Retrieves the bounty limit (maximum number of pirates allowed on a bounty)
+    associated with a specified group ID. Caches the result for performance
+    to avoid redundant lookups during the script's execution.
+
+    Parameters:
+        group_id (str): The group ID for which to retrieve the bounty limit.
+
+    Returns:
+        int: The bounty limit for the specified group ID.
+             If not found, returns the default maximum pirate count.
+
+    Caching:
+        The function caches results to avoid redundant lookups for the same group ID,
+        improving performance.
+        Cached results are stored in the 'bounty_limit_cache' dictionary.
+    """
+
+    try:
+
+        if group_id in bounty_limit_cache:
+            return int(bounty_limit_cache[group_id])
+
+        bounty_mappings_df = _bounty_mappings.get_mappings_df()
+
+        #print("Columns in bounty_mappings_df:", bounty_mappings_df.columns)  # Print column names
+
+        result = bounty_mappings_df[bounty_mappings_df['group_id'] == group_id]
+
+        #print("Resulting DataFrame for group_id:", group_id)
+        #print(result)  # Print the result DataFrame to see its structure
+
+        if not result.empty:
+            bounty_limit = result.iloc[0]['limit']
+            bounty_limit_cache[group_id] = bounty_limit
+            return bounty_limit
+        else:
+            bounty_limit_cache[group_id] = MAX_PIRATE_ON_BOUNTY
+            return MAX_PIRATE_ON_BOUNTY
+    except FileNotFoundError as e:
+        print(f"File not found: {str(e)}")
+        return MAX_PIRATE_ON_BOUNTY
+    except Exception as e:
+        print(f"get_bounty_name_by_group_id({group_id}): An error occurred: {str(e)}")
+        #traceback.print_exc()  # Print the full traceback for the exception
+        return MAX_PIRATE_ON_BOUNTY
+
 
 
 class PirateBountyMappings:
@@ -466,7 +521,7 @@ def rate_limited_has_pending_bounty(contract, address, group_id):
         return result
     except Exception as e:
         error_type = type(e).__name__
-        print(f"{pn.C_RED}**has_pending_bounty -> Exception: {e} - {error_type}{pn.C_END}")
+        print(f"   {pn.C_RED}**has_pending_bounty -> Exception: {e} - {error_type}{pn.C_END}")
         return False
 
 
@@ -600,7 +655,7 @@ def get_bounties_to_execute(default_group_id, default_bounty_name, buffer, entit
     Returns:
         dict: A dictionary where keys are group IDs and values are lists of pirates to execute for each bounty.
     """
-    MAX_PIRATE_ON_BOUNTY = 20  
+   
     bounties_to_execute = {default_group_id: []} # Initialize a dictionary of bounties and pirates to execute
 
     # Loop through the pirate_ids and load up bounties_to_execute
@@ -623,11 +678,11 @@ def get_bounties_to_execute(default_group_id, default_bounty_name, buffer, entit
             if bounty_group_id not in bounties_to_execute:
                 bounties_to_execute[bounty_group_id] = []
 
-            # Reconfirm it's less than MAX_PIRATE_ON_BOUNTY and append the entity ID
-            if len(bounties_to_execute[bounty_group_id]) < MAX_PIRATE_ON_BOUNTY:
+            # Reconfirm it's less than the limit for this bounty
+            if len(bounties_to_execute[bounty_group_id]) < get_bounty_limit_by_group_id(bounty_group_id):
                 bounties_to_execute[bounty_group_id].append(pn.pirate_token_id_to_entity(pirate_token_id, address=pirate_contract_addr))
             else:
-                buffer.append(f"{pn.C_RED}Rare edge case: skipping adding {entity_id} to any bounties{pn.C_END}")
+                buffer.append(f"   {pn.C_RED}LIMIT Reached, Skipping adding {entity_id} to {bounty_name} - {bounty_group_id}{pn.C_END}")
 
     return bounties_to_execute
 
@@ -715,7 +770,6 @@ def process_address(args, default_group_id, default_bounty_name, web3, bounty_co
     return buffer, num_ended_bounties, num_started_bounties
 
 
-
 def parse_arguments():
     parser = argparse.ArgumentParser(description="This is a script to automate bounties")
 
@@ -725,19 +779,53 @@ def parse_arguments():
     parser.add_argument("--skip_start", dest="start", action="store_false", default=True,
                         help="Flag to skip startBounty")
     
-    parser.add_argument("--max_threads", type=int, default=MAX_THREADS, help=f"Maximum number of threads (default: {MAX_THREADS})")
+    parser.add_argument("--max_threads", type=int, default=MAX_THREADS, help="Maximum number of threads (default: 2)")
+
+    parser.add_argument("--delay_start", type=int, default=0, help="Delay in minutes before executing logic of the code (default: None)")    
+    
+    parser.add_argument("--delay", type=int, default=0, help="Delay in minutes before executing the  code again code (default: None)")
+
+    parser.add_argument("--loop", action="store_true", default=False, help="Flag to enable looping")    
 
     args = parser.parse_args()
+    
+    # Validate the arguments
+    if args.loop and not args.delay:
+        parser.error("--delay is required when --loop is specified.")
+    
     return args
+
+
+def handle_delay(delay_in_minutes):
+    if delay_in_minutes is not None and delay_in_minutes > 0:
+        if delay_in_minutes >= 60:
+            hours = delay_in_minutes // 60
+            minutes = delay_in_minutes % 60
+            print(f"Delaying execution for {hours} hours {minutes} minutes...")
+        else:
+            print(f"Delaying execution for {delay_in_minutes} minutes...")
+        
+        for remaining in range(delay_in_minutes * 60, 0, -1):
+            sys.stdout.write(f"\rTime remaining: {remaining // 3600} hours {(remaining % 3600) // 60} minutes {remaining % 60} seconds")
+            sys.stdout.flush()
+            time.sleep(1)
+        print("\nDelay complete. Resuming execution.")
+
 
 def main():
     start_time = time.time()
     
-    # pull arguments out for start and end
+    # Pull arguments out for start, end, and delay
     args = parse_arguments()
     print("endBounty:", args.end)
     print("startBounty:", args.start)
-    print("max_theads:", args.max_threads)
+    print("max_threads:", args.max_threads)
+    print("loop:", args.loop)
+    print("delay:", args.delay)
+
+    # Display available bounties to the user only if we have start flag set
+    default_group_id = 0
+    default_bounty_name = None
 
     # Load data from csv file
     csv_file = pn.select_file(prefix="addresses_pk", file_extension=".csv")
@@ -750,47 +838,62 @@ def main():
         default_group_id, default_bounty_name = get_default_bounty()
         print(f"{pn.C_GREEN}default_group_id:{pn.C_CYAN} {default_group_id}{pn.C_END}\n\n")
 
-    # Initialize web3 with the PN
-    web3 = pn.Web3Singleton.get_web3_Nova()
-    bounty_contract = pn.Web3Singleton.get_BountySystem()
+    # put in an initial starting delay
+    if args.delay_start:
+        handle_delay(args.delay_start)
 
-    ended_bounties = 0
-    started_bounties = 0
+    while True:
 
-    # Load the JSON data from the file
-    bounty_data = pn.get_data(bounty_query)
+        # Initialize web3 with the PN
+        web3 = pn.Web3Singleton.get_web3_Nova()
+        bounty_contract = pn.Web3Singleton.get_BountySystem()
 
-    # CODE if we are going to run bounties multithreaded 
-    if args.max_threads > 0 :
+        ended_bounties = 0
+        started_bounties = 0
 
-        print("Initiating Multithreading")
+        # Load the JSON data from the file
+        bounty_data = pn.get_data(bounty_query)
 
-        #pre initialize for thread safety
-        _pirate_bounty_mappings.get_mappings_df()
+        # CODE if we are going to run bounties multithreaded 
+        if args.max_threads > 0 :
 
-        with ThreadPoolExecutor(max_workers=args.max_threads) as executor:
-            # Submit jobs to the executor
-            futures = [executor.submit(process_address, args, default_group_id, default_bounty_name, web3, bounty_contract, bounty_data, row, True) 
-                for index, row in df_addressses.iterrows()]
+            print("Initiating Multithreading")
 
-            # Collect results as they come in
-            for future in futures:
-                buffer, num_ended_bounties, num_started_bounties = future.result()
+            #pre initialize for thread safety
+            _pirate_bounty_mappings.get_mappings_df()
+
+            with ThreadPoolExecutor(max_workers=args.max_threads) as executor:
+                # Submit jobs to the executor
+                futures = [executor.submit(process_address, args, default_group_id, default_bounty_name, web3, bounty_contract, bounty_data, row, True) 
+                    for index, row in df_addressses.iterrows()]
+
+                # Collect results as they come in
+                for future in futures:
+                    buffer, num_ended_bounties, num_started_bounties = future.result()
+                    ended_bounties += num_ended_bounties
+                    started_bounties += num_started_bounties
+
+        # if we are going to go in order sequentially
+        else:
+
+            for index, row in df_addressses.iterrows():
+                buffer, num_ended_bounties, num_started_bounties = process_address(args, default_group_id, default_bounty_name, web3, bounty_contract, bounty_data, row, False)
                 ended_bounties += num_ended_bounties
                 started_bounties += num_started_bounties
 
-    # if we are going to go in order sequentially
-    else:
+        end_time = time.time()
+        execution_time = end_time - start_time           
 
-        for index, row in df_addressses.iterrows():
-            buffer, num_ended_bounties, num_started_bounties = process_address(args, default_group_id, default_bounty_name, web3, bounty_contract, bounty_data, row, False)
-            ended_bounties += num_ended_bounties
-            started_bounties += num_started_bounties
+        print(f"\nclaimed {ended_bounties} bounties and started {started_bounties} bounties in {execution_time:.2f} seconds")
 
-    end_time = time.time()
-    execution_time = end_time - start_time           
+        # end the loop if we don't have looping speified
+        if not args.loop:
+            break
+        else:
+            # continue looping with necessary delay
+            handle_delay(args.delay)
 
-    print(f"\nclaimed {ended_bounties} bounties and started {started_bounties} bounties in {execution_time:.2f} seconds")
+
 
 
 if __name__ == "__main__":
