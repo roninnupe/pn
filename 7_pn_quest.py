@@ -1,4 +1,6 @@
+import argparse
 import time
+import traceback
 import pandas as pd
 import pn_helper as pn
 from web3 import Web3, HTTPProvider
@@ -187,8 +189,7 @@ def start_quest(contract, address, key, quest):
 
         quest_inputs_list.append((
             token_type_int,
-            Web3.to_checksum_address(token_contract),
-            #Web3.to_checksum_address(input_data['tokenPointer']['tokenContract']['address']),
+            Web3.to_checksum_address(input_data['tokenPointer']['tokenContract']['address']),
             int(input_data['tokenPointer']['tokenId']),
             int(input_data['tokenPointer']['amount'])
         ))
@@ -196,10 +197,10 @@ def start_quest(contract, address, key, quest):
     # 7. Construct the quest_params_data using the input list
     quest_params_data = (
         int(quest['id']),  # questId
-        quest_inputs_list  # List of input tuples
+        # Code to replace the Pirate NFT contract address with whatever the NFT token address we get it, to support the starter pirates
+        [(quest_input[0], Web3.to_checksum_address(token_contract) if quest_input[1] == pn._contract_PirateNFT_addr else quest_input[1], quest_input[2], quest_input[3]) for quest_input in quest_inputs_list]
+        #quest_inputs_list  # List of input tuples - this is old code that only supports pirate, not starter pirates
     )
-
-    print(quest_params_data)
 
     # 8. Create transaction
     try:
@@ -209,39 +210,23 @@ def start_quest(contract, address, key, quest):
             'gasPrice': web3.eth.gas_price,
             'nonce': web3.eth.get_transaction_count(address),
         })
+
+        signed_txn = web3.eth.account.sign_transaction(txn, private_key=key)
+        txn_hash = web3.eth.send_raw_transaction(signed_txn.rawTransaction)
+        txn_reciept = web3.eth.wait_for_transaction_receipt(txn_hash)
+
+        return txn_hash, pn.get_status_message(txn_reciept)        
     except Exception as e:
-        print(f"Error constructing transaction: {e}")
-        return None, "Failed to construct transaction"
-
-    signed_txn = web3.eth.account.sign_transaction(txn, private_key=key)
-    txn_hash = web3.eth.send_raw_transaction(signed_txn.rawTransaction)
-    txn_reciept = web3.eth.wait_for_transaction_receipt(txn_hash)
-
-    return txn_hash, pn.get_status_message(txn_reciept)
-
-
-
-def main_script():
-
-    start_time = time.time()
-
-    # Number of threads to use
-    MAX_THREADS = 3
-
-    selected_file = pn.select_file(prefix="addresses_pk", file_extension=".csv")
-
-    with open(selected_file, mode='r') as file:
-        csv_reader = csv.DictReader(file)
-
-        with ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
-            results = list(executor.map(handle_row, csv_reader))
-
-    end_time = time.time()
-    execution_time = end_time - start_time
-    print(f"\n   Execution time: {execution_time:.2f} seconds")       
+        
+        # Print the error type and traceback
+        print(f"Error type: {type(e).__name__}")
+        traceback.print_exc()  # This prints the traceback
+        print(f"Error with transaction: {e}")
+    
+    return None, "Failed to execute transaction"
     
 
-def handle_row(row):
+def handle_row(row, is_multi_threaded=True):
     wallet_id = row['wallet']
     address = row['address']
 
@@ -275,5 +260,80 @@ def handle_row(row):
     print("\n".join(buffer))
 
 
+# Number of threads to use
+MAX_THREADS = 3
+
+def parse_arguments():
+    parser = argparse.ArgumentParser(description="This is a script to automate bounties")
+    
+    parser.add_argument("--max_threads", type=int, default=MAX_THREADS, help="Maximum number of threads (default: 2)")
+
+    parser.add_argument("--delay_start", type=int, default=0, help="Delay in minutes before executing logic of the code (default: 0)")    
+    
+    parser.add_argument("--delay_loop", type=int, default=0, help="Delay in minutes before executing the code again code (default: 0)")
+
+
+    parser.add_argument("--csv_file", type=str, default=None, help="Specify the csv file of addresses (default: None)") 
+
+    args = parser.parse_args()
+    
+    return args
+
+
+def main_script():
+
+    # Pull arguments out for start, end, and delay
+    args = parse_arguments()
+    print("max_threads:", args.max_threads)
+    print("delay_start:", args.delay_start)
+    print("delay_loop:", args.delay_loop)
+    print("csv_file:", args.csv_file)
+
+    # Load data from csv file
+    if args.csv_file: 
+        selected_file = pn.data_path(args.csv_file)
+    else:
+        selected_file = pn.select_file(prefix="addresses_pk", file_extension=".csv")    
+
+    # put in an initial starting delay
+    if args.delay_start:
+        pn.handle_delay(args.delay_start)
+
+    with open(selected_file, mode='r') as file:
+        csv_reader = csv.DictReader(file)
+
+        while True:
+
+            start_time = time.time()
+
+            if args.max_threads > 1 :
+
+                with ThreadPoolExecutor(max_workers=args.max_threads) as executor:
+                    results = list(executor.map(handle_row, csv_reader))
+
+                # end the loop if we don't have looping speified
+                if args.delay_loop == 0:
+                    break
+                else:
+                    # continue looping with necessary delay
+                     pn.handle_delay(args.delay_loop)
+            
+            else:
+                for row in csv_reader:
+                    handle_row(row, is_multi_threaded=False)
+
+
+            end_time = time.time()
+            execution_time = end_time - start_time
+            print(f"Quest xecution time: {execution_time:.2f} seconds")     
+
+            # end the loop if we don't have looping speified
+            if args.delay_loop == 0:
+                break
+            else:
+                # continue looping with necessary delay
+                pn.handle_delay(args.delay_loop)
+
+                
 main_script()
 

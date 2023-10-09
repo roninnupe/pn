@@ -2,6 +2,8 @@
 # https://docs.piratenation.game/important/contracts
 
 import os
+import sys
+import time
 import questionary
 import json
 import requests
@@ -587,3 +589,19 @@ def select_xlsx_file():
         selected_file = _select_directory_file(excel_files)
         print(f"You selected: {selected_file}")
         return f"{directory_path}/{selected_file}"
+
+
+def handle_delay(delay_in_minutes):
+    if delay_in_minutes is not None and delay_in_minutes > 0:
+        if delay_in_minutes >= 60:
+            hours = delay_in_minutes // 60
+            minutes = delay_in_minutes % 60
+            print(f"Delaying execution for {hours} hours {minutes} minutes...")
+        else:
+            print(f"Delaying execution for {delay_in_minutes} minutes...")
+        
+        for remaining in range(delay_in_minutes * 60, 0, -1):
+            sys.stdout.write(f"\rTime remaining: {remaining // 3600} hours {(remaining % 3600) // 60} minutes {remaining % 60} seconds")
+            sys.stdout.flush()
+            time.sleep(1)
+        print("\nDelay complete. Resuming execution.")

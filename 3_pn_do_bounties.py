@@ -1,5 +1,4 @@
 import argparse
-import sys
 import time
 import questionary
 import pandas as pd
@@ -7,7 +6,6 @@ import pn_helper as pn
 from eth_utils import to_checksum_address
 from concurrent.futures import ThreadPoolExecutor
 from ratelimit import limits, sleep_and_retry
-import traceback
 
 MAX_THREADS = 2
 MAX_PIRATE_ON_BOUNTY = 20  
@@ -783,9 +781,7 @@ def parse_arguments():
 
     parser.add_argument("--delay_start", type=int, default=0, help="Delay in minutes before executing logic of the code (default: 0)")    
     
-    parser.add_argument("--delay", type=int, default=0, help="Delay in minutes before executing the code again code (default: 0)")
-
-    parser.add_argument("--loop", action="store_true", default=False, help="Flag to enable looping")   
+    parser.add_argument("--delay_loop", type=int, default=0, help="Delay in minutes before executing the code again code (default: 0)")
 
     parser.add_argument("--default_group_id", type=str, default=None, help="Specify the default bounty group id (default: None)") 
 
@@ -793,39 +789,18 @@ def parse_arguments():
 
     args = parser.parse_args()
     
-    # Validate the arguments
-    if args.loop and not args.delay:
-        parser.error("--delay is required when --loop is specified.")
-    
     return args
 
 
-def handle_delay(delay_in_minutes):
-    if delay_in_minutes is not None and delay_in_minutes > 0:
-        if delay_in_minutes >= 60:
-            hours = delay_in_minutes // 60
-            minutes = delay_in_minutes % 60
-            print(f"Delaying execution for {hours} hours {minutes} minutes...")
-        else:
-            print(f"Delaying execution for {delay_in_minutes} minutes...")
-        
-        for remaining in range(delay_in_minutes * 60, 0, -1):
-            sys.stdout.write(f"\rTime remaining: {remaining // 3600} hours {(remaining % 3600) // 60} minutes {remaining % 60} seconds")
-            sys.stdout.flush()
-            time.sleep(1)
-        print("\nDelay complete. Resuming execution.")
-
-
 def main():
-    start_time = time.time()
     
     # Pull arguments out for start, end, and delay
     args = parse_arguments()
     print("endBounty:", args.end)
     print("startBounty:", args.start)
     print("max_threads:", args.max_threads)
-    print("loop:", args.loop)
-    print("delay:", args.delay)
+    print("delay_start:", args.delay_start)
+    print("delay_loop:", args.delay_loop)
     print("default_group_id:", args.default_group_id)
     print("csv_file:", args.csv_file)
 
@@ -857,9 +832,11 @@ def main():
 
     # put in an initial starting delay
     if args.delay_start:
-        handle_delay(args.delay_start)
+        pn.handle_delay(args.delay_start)
 
     while True:
+
+        start_time = time.time()
 
         # Initialize web3 with the PN
         web3 = pn.Web3Singleton.get_web3_Nova()
@@ -904,11 +881,11 @@ def main():
         print(f"\nclaimed {ended_bounties} bounties and started {started_bounties} bounties in {execution_time:.2f} seconds")
 
         # end the loop if we don't have looping speified
-        if not args.loop:
+        if args.delay_loop == 0:
             break
         else:
             # continue looping with necessary delay
-            handle_delay(args.delay)
+            pn.handle_delay(args.delay_loop)
 
 
 
