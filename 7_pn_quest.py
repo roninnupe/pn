@@ -198,9 +198,18 @@ def start_quest(contract, address, key, quest):
     quest_params_data = (
         int(quest['id']),  # questId
         # Code to replace the Pirate NFT contract address with whatever the NFT token address we get it, to support the starter pirates
-        [(quest_input[0], Web3.to_checksum_address(token_contract) if quest_input[1] == pn._contract_PirateNFT_addr else quest_input[1], quest_input[2], quest_input[3]) for quest_input in quest_inputs_list]
+        [
+            (
+                quest_input[0], 
+                Web3.to_checksum_address(token_contract) if quest_input[1].lower() == pn._contract_PirateNFT_addr.lower() else quest_input[1], 
+                quest_input[2], 
+                quest_input[3]
+            ) 
+            for quest_input in quest_inputs_list
+        ]
         #quest_inputs_list  # List of input tuples - this is old code that only supports pirate, not starter pirates
     )
+
 
     # 8. Create transaction
     try:
@@ -227,9 +236,8 @@ def start_quest(contract, address, key, quest):
     
 
 def handle_row(row, is_multi_threaded=True):
-    wallet_id = row['wallet']
+    wallet_id = row['identifier']
     address = row['address']
-
     key = row['key']
     buffer = []
 
@@ -272,8 +280,7 @@ def parse_arguments():
     
     parser.add_argument("--delay_loop", type=int, default=0, help="Delay in minutes before executing the code again code (default: 0)")
 
-
-    parser.add_argument("--csv_file", type=str, default=None, help="Specify the csv file of addresses (default: None)") 
+    parser.add_argument("--wallets", type=str, default=None, help="Specify the wallet range you'd like (e.g., 1-10,15,88-92) (default: None)") 
 
     args = parser.parse_args()
     
@@ -287,53 +294,63 @@ def main_script():
     print("max_threads:", args.max_threads)
     print("delay_start:", args.delay_start)
     print("delay_loop:", args.delay_loop)
-    print("csv_file:", args.csv_file)
+    print("wallets:", args.wallets)
 
     # Load data from csv file
-    if args.csv_file: 
-        selected_file = pn.data_path(args.csv_file)
+    if args.wallets: 
+
+        walletlist = args.wallets
+
     else:
-        selected_file = pn.select_file(prefix="addresses_pk", file_extension=".csv")    
+
+        # Prompt the user for a wallet range
+        while True:
+            range_input = input("Input the wallet range you'd like (e.g., 1-10,15,88-92): ")
+            walletlist = pn.parse_number_ranges(range_input)
+    
+            if walletlist:
+                break
+            else:
+                print("Invalid input. Please enter a valid wallet range.")
 
     # put in an initial starting delay
     if args.delay_start:
         pn.handle_delay(args.delay_start)
 
-    with open(selected_file, mode='r') as file:
-        csv_reader = csv.DictReader(file)
+    df_addresses = pn.get_full_wallet_data(walletlist)
 
-        while True:
+    while True:
 
-            start_time = time.time()
+        start_time = time.time()
 
-            if args.max_threads > 1 :
+        if args.max_threads > 1:
 
-                with ThreadPoolExecutor(max_workers=args.max_threads) as executor:
-                    results = list(executor.map(handle_row, csv_reader))
+            with ThreadPoolExecutor(max_workers=args.max_threads) as executor:
+                results = list(executor.map(handle_row, df_addresses.to_dict(orient='records')))
 
-                # end the loop if we don't have looping speified
-                if args.delay_loop == 0:
-                    break
-                else:
-                    # continue looping with necessary delay
-                     pn.handle_delay(args.delay_loop)
-            
-            else:
-                for row in csv_reader:
-                    handle_row(row, is_multi_threaded=False)
-
-
-            end_time = time.time()
-            execution_time = end_time - start_time
-            print(f"Quest xecution time: {execution_time:.2f} seconds")     
-
-            # end the loop if we don't have looping speified
+            # end the loop if we don't have looping specified
             if args.delay_loop == 0:
                 break
             else:
                 # continue looping with necessary delay
                 pn.handle_delay(args.delay_loop)
+        
+        else:
+            for index, row in df_addresses.iterrows():
+                handle_row(row, is_multi_threaded=False)
 
-                
+        end_time = time.time()
+        execution_time = end_time - start_time
+        print(f"Quest execution time: {execution_time:.2f} seconds")     
+
+        # end the loop if we don't have looping specified
+        if args.delay_loop == 0:
+            break
+        else:
+            # continue looping with necessary delay
+            pn.handle_delay(args.delay_loop)
+
+
+
 main_script()
 

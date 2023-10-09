@@ -694,7 +694,7 @@ def process_address(args, default_group_id, default_bounty_name, web3, bounty_co
 
     buffer = []
 
-    wallet = row['wallet']
+    wallet = row['identifier']
     address = row['address']
     private_key = row['key']
 
@@ -785,7 +785,7 @@ def parse_arguments():
 
     parser.add_argument("--default_group_id", type=str, default=None, help="Specify the default bounty group id (default: None)") 
 
-    parser.add_argument("--csv_file", type=str, default=None, help="Specify the csv file of addresses (default: None)") 
+    parser.add_argument("--wallets", type=str, default=None, help="Specify the wallet range you'd like (e.g., 1-10,15,88-92) (default: None)") 
 
     args = parser.parse_args()
     
@@ -802,19 +802,31 @@ def main():
     print("delay_start:", args.delay_start)
     print("delay_loop:", args.delay_loop)
     print("default_group_id:", args.default_group_id)
-    print("csv_file:", args.csv_file)
+    print("wallets:", args.wallets)
 
     # Display available bounties to the user only if we have start flag set
     default_group_id = 0
     default_bounty_name = None
 
     # Load data from csv file
-    if args.csv_file: 
-        csv_file = pn.data_path(args.csv_file)
+    if args.wallets: 
+
+        walletlist = args.wallets
+
     else:
-        csv_file = pn.select_file(prefix="addresses_pk", file_extension=".csv")
+
+        # Prompt the user for a wallet range
+        while True:
+            range_input = input("Input the wallet range you'd like (e.g., 1-10,15,88-92): ")
+            walletlist = pn.parse_number_ranges(range_input)
     
-    df_addressses = pd.read_csv(csv_file) #replace with your file_path
+            if walletlist:
+                break
+            else:
+                print("Invalid input. Please enter a valid wallet range.")
+
+    # Call the function with the user's input
+    df_addressses = pn.get_full_wallet_data(walletlist)
 
     if args.start:
 

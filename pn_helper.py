@@ -605,3 +605,42 @@ def handle_delay(delay_in_minutes):
             sys.stdout.flush()
             time.sleep(1)
         print("\nDelay complete. Resuming execution.")
+
+
+def get_full_wallet_data(walletlist, csv_filename="full_data_for_addresses.csv"):
+
+    try:
+        # Read the CSV file into a DataFrame
+        df = pd.read_csv(data_path(csv_filename))
+
+        # Filter the DataFrame based on the 'identifier' column
+        filtered_df = df[df['identifier'].isin(walletlist)]
+
+        return filtered_df
+
+    except FileNotFoundError as e:
+        print(f"File not found: {str(e)}")
+        # Return an empty DataFrame or raise an exception based on your needs
+        return pd.DataFrame()
+    except Exception as e:
+        print(f"An error occurred: {str(e)}")
+        # Return an empty DataFrame or raise an exception based on your needs
+        return pd.DataFrame()
+
+
+def parse_number_ranges(range_str):
+    result = []
+    ranges = range_str.split(',')
+    
+    for r in ranges:
+        parts = r.split('-')
+        
+        if len(parts) == 1:
+            # Single number
+            result.append(int(parts[0]))
+        elif len(parts) == 2:
+            # Range of numbers
+            start, end = int(parts[0]), int(parts[1])
+            result.extend(range(start, end + 1))
+    
+    return result
