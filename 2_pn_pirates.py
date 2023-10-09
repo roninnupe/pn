@@ -182,8 +182,13 @@ if 'data' in data and 'accounts' in data['data']:
                     # add data around chest claims to the Pirate NFT data
                     add_next_claim_date(nft)
 
+                    nft['traits'].append({'metadata': {'name': 'Gen'}, 'value': 0})
+
                 elif nft['nftType'] == 'starterpirate':
-                    current_token_id = f"{current_token_id}000"
+
+                    nft['traits'].append({'metadata': {'name': 'Gen'}, 'value': 1})                    
+
+                    current_token_id = f"{current_token_id}"
 
                 # add data about what it takes to get to the next level, and if the NFT can already be leveled up to the next level
                 calculate_upgradable_level(nft)
@@ -216,6 +221,8 @@ column_order = [
     "#",
     "address",
     "tokenId",
+    "Gen",
+    "Bounty",
     "Price",
     "Character Type",
     "level",

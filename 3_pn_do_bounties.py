@@ -246,37 +246,43 @@ class PirateBountyMappings:
     
 _pirate_bounty_mappings = PirateBountyMappings()
 
-def get_bounty_name_for_token_id(token_id, default_bounty_name):
+def get_bounty_name_for_token_id(token_id, generation, default_bounty_name):
     """
-    Get the bounty name associated with a specific Pirate NFT token ID.
+    Get the bounty name associated with a specific Pirate NFT token ID and generation.
 
     This function retrieves the bounty name linked to a given Pirate NFT token ID
-    from a loaded DataFrame of pirate-to-bounty mappings. If a matching token ID is found,
-    it returns the associated bounty name. If the token ID is not found or the associated bounty
-    is not a string, it returns the provided default bounty name.
+    and generation from a loaded DataFrame of pirate-to-bounty mappings. If a matching
+    token ID and generation is found, it returns the associated bounty name. If the
+    token ID and generation are not found or the associated bounty is not a string,
+    it returns the provided default bounty name.
 
     Parameters:
     - token_id (int): The Pirate NFT token ID to look up.
+    - generation (int): The Generation of the Pirate ID.
     - default_bounty_name (str): The default bounty name to return if no match is found.
 
     Returns:
-    - str: The bounty name associated with the specified token ID or the default bounty name.
+    - str: The bounty name associated with the specified token ID and generation or the default bounty name.
 
     Example:
-    >>> get_bounty_name_for_token_id(12345, "Default Bounty")
+    >>> get_bounty_name_for_token_id(12345, 2, "Default Bounty")
     'Ore Galore'
     """
 
+    print(f"{token_id} {generation}")
+
     pirate_bounty_df = _pirate_bounty_mappings.get_mappings_df()
 
-    matching_row = pirate_bounty_df[pirate_bounty_df['tokenId'] == token_id]
+    matching_row = pirate_bounty_df[(pirate_bounty_df['tokenId'] == token_id) & (pirate_bounty_df['Gen'] == generation)]
     
     if not matching_row.empty:
         bounty = matching_row.iloc[0]['Bounty']
         if isinstance(bounty, str):
+            print("match")
             return bounty
         
-    return default_bounty_name  # Token ID not found in the DataFrame or bounty is not a string
+    return default_bounty_name  # Token ID and generation not found in the DataFrame or bounty is not a string
+
 
 
 def get_bounty_name_and_id(data, group_id, entity_ids) -> (str, int):
@@ -573,6 +579,12 @@ def rate_limited_start_bounty(web3, contract_to_write, address, private_key, bou
     1
     """
     buffer.append(f"   Sending {pn.C_CYAN}{len(pirates)}{pn.C_END} pirate(s) on {pn.C_CYAN}'{bounty_name}'{pn.C_END}: {bounty_id}")
+
+    # Print out the pirates' addresses and token IDs
+    for pirate in pirates:
+        address_str, token_id = pn.entity_to_token(pirate)
+        buffer.append(f"     Pirate Address: {address_str}, Token ID: {token_id}")
+
     txn_dict = {
         'from': address,
         'to': contract_to_write.address,
@@ -591,6 +603,7 @@ def rate_limited_start_bounty(web3, contract_to_write, address, private_key, bou
         error_type = type(e).__name__
         buffer.append(f"   -> {pn.C_RED}**Error startBounty{pn.C_END}: {e} - {error_type}")
         return 0
+
 
 # Rate-limited function to end a bounty.
 @limits(calls=10, period=1)
@@ -640,10 +653,6 @@ def get_bounties_to_execute(default_group_id, default_bounty_name, buffer, entit
     """
     Determine which bounties to execute based on a list of entity IDs.
 
-    This function assigns pirates to specific bounties based on their entity IDs. It ensures that each bounty
-    does not exceed a maximum number of pirates (MAX_PIRATE_ON_BOUNTY). If a pirate cannot be added to their
-    assigned bounty due to this limit, they are added to the default bounty as a fallback.
-
     Args:
         default_group_id (int): The default group ID to use if a specific bounty is not found.
         default_bounty_name (str): The default bounty name to use if a specific bounty is not found.
@@ -653,36 +662,29 @@ def get_bounties_to_execute(default_group_id, default_bounty_name, buffer, entit
     Returns:
         dict: A dictionary where keys are group IDs and values are lists of pirates to execute for each bounty.
     """
-   
-    bounties_to_execute = {default_group_id: []} # Initialize a dictionary of bounties and pirates to execute
+    bounties_to_execute = {default_group_id: []}  # Initialize a dictionary of bounties and pirates to execute
 
-    # Loop through the pirate_ids and load up bounties_to_execute
     for entity_id in entity_ids:
         pirate_contract_addr, pirate_token_id = entity_id.split('-')
         pirate_token_id = int(pirate_token_id)
 
-        # IF it's Founder PIRATE, do the appropriate look ups to determine what bounty was specified
-        if pirate_contract_addr == pn._contract_PirateNFT_addr:
-            bounty_name = get_bounty_name_for_token_id(pirate_token_id, default_bounty_name)
-            bounty_group_id = get_group_id_by_bounty_name(bounty_name, default_group_id)
-        # IF it's a starter PIRATE, it always falls back on the default group ID by design (for now)
-        else:
-            bounty_name = default_bounty_name
-            bounty_group_id = default_group_id
+        #set the appropriate generation for the to make sure we look the proper pirate up
+        generation = 1 if pirate_contract_addr != pn._contract_PirateNFT_addr else 0
+        bounty_name = get_bounty_name_for_token_id(pirate_token_id, generation, default_bounty_name)
+        bounty_group_id = get_group_id_by_bounty_name(bounty_name, default_group_id)
 
-        # Ensure there is a valid bounty group ID
         if bounty_group_id != 0:
-            # Check if the bounty_group_id is already in the dictionary, if not, create an empty list
             if bounty_group_id not in bounties_to_execute:
                 bounties_to_execute[bounty_group_id] = []
 
-            # Reconfirm it's less than the limit for this bounty
-            if len(bounties_to_execute[bounty_group_id]) < get_bounty_limit_by_group_id(bounty_group_id):
-                bounties_to_execute[bounty_group_id].append(pn.pirate_token_id_to_entity(pirate_token_id, address=pirate_contract_addr))
-            else:
-                buffer.append(f"   {pn.C_RED}LIMIT Reached, Skipping adding {entity_id} to {bounty_name} - {bounty_group_id}{pn.C_END}")
+            bounty_limit = get_bounty_limit_by_group_id(bounty_group_id)
+            if len(bounties_to_execute[bounty_group_id]) < bounty_limit:
+                pirate_entity = pn.pirate_token_id_to_entity(pirate_token_id, address=pirate_contract_addr)
+                bounties_to_execute[bounty_group_id].append(pirate_entity)
+            #else: buffer.append(f"   {pn.C_RED}LIMIT Reached, Skipping adding {entity_id} to {bounty_name} - {bounty_group_id}{pn.C_END}")
 
     return bounties_to_execute
+
 
 
 def process_address(args, default_group_id, default_bounty_name, web3, bounty_contract, bounty_data, row, is_multi_threaded):
