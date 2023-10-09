@@ -356,12 +356,23 @@ def fetch_quest_data():
       quests {{
         id
         inputs {{
+          id
+          tokenPointer {{
+            id
+            amount
+            tokenType
+            tokenId
+            tokenContract {{
+              address
+            }}
+          }}
           energyRequired
         }}
       }}
     }}
     """
     return get_data(query)
+
 
 
 # makes sure to properly format address to checksum lowercase variant

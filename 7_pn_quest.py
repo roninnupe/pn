@@ -26,6 +26,7 @@ quest_menu = {
     19: "🪓 Chop More Wood",
     20: "🌾 Harvest More Cotton",
     21: "⛏️ Mine More Iron",
+    54: "🔍 Finding the Lost",
     99: "🚪 Exit"
 }
 
@@ -33,8 +34,10 @@ quest_colors = {
     "📦 Load Cargo": "\033[93m",          # Light Blue
     "🪓 Chop More Wood": "\033[95m",     # Light Purple
     "🌾 Harvest More Cotton": "\033[96m", # Light Cyan
-    "⛏️ Mine More Iron": "\033[97m"      # White
+    "⛏️ Mine More Iron": "\033[97m",     # White
+    "🔍 Finding the Lost": "\033[96m"          # Light Cyan (or choose another color)
 }
+
 
 # Color Constants for CLI
 C_RED = "\033[91m"
@@ -145,6 +148,7 @@ def get_pirate_id(address):
 
 # Starts the quest for
 def start_quest(contract, address, key, quest):
+
     """Start the quest."""
     # 1. Get the graph ID for the provided address
     graph_id = get_pirate_id(address)
@@ -152,35 +156,69 @@ def start_quest(contract, address, key, quest):
     # 2. Convert the graph ID to token ID
     token_contract, token_id = pn.graph_id_to_address_and_tokenId(graph_id)
 
-    # 3. Use the token ID in the quest_params_data
-    quest_params_data = {
-        'questId': int(quest['id']),
-        'inputs': [
-            {
-                'tokenType': 2,
-                'tokenContract': Web3.to_checksum_address(token_contract),
-                'tokenId': token_id,
-                'amount': 1
-            }
-        ]
-    }
+    # 3. Fetch comprehensive quest data
+    quests_data = pn.fetch_quest_data()
 
-    quest_params_data['inputs'] = [
-        (input_data['tokenType'], input_data['tokenContract'], input_data['tokenId'], input_data['amount']) for
-        input_data in quest_params_data['inputs']]
+    # 4. Extract input details for the specified quest ID
+    quest_inputs = None
+    for q in quests_data['data']['quests']:
+        if q['id'] == quest['id']:
+            quest_inputs = q['inputs']
+            break
 
-    txn = contract.functions.startQuest((quest_params_data['questId'], quest_params_data['inputs'])).build_transaction({
-        'chainId': 42170,
-        'gas': 950000,
-        'gasPrice': web3.eth.gas_price,
-        'nonce': web3.eth.get_transaction_count(address),
-    })
+    if not quest_inputs:
+        print(f"Error: No quest inputs found for quest ID: {quest['id']}")
+        return None, "Failed due to missing quest inputs"
+
+    # Token type mapping
+    token_type_mapping = {'ERC721': 2,'ERC20': 1}
+
+    # 5. Construct the input tuples for the quest
+    quest_inputs_list = []
+
+    # 6. Append required game items for the quest
+    for input_data in quest_inputs:
+        token_type_str = input_data['tokenPointer']['tokenType']
+        token_type_int = token_type_mapping.get(token_type_str, 0)  # Default to 0 if not found
+
+        # Check if this is the pirate data and replace the placeholder token ID
+        if token_type_int == 2 and int(input_data['tokenPointer']['tokenId']) == 0:
+            input_data['tokenPointer']['tokenId'] = str(token_id)
+
+        quest_inputs_list.append((
+            token_type_int,
+            Web3.to_checksum_address(token_contract),
+            #Web3.to_checksum_address(input_data['tokenPointer']['tokenContract']['address']),
+            int(input_data['tokenPointer']['tokenId']),
+            int(input_data['tokenPointer']['amount'])
+        ))
+
+    # 7. Construct the quest_params_data using the input list
+    quest_params_data = (
+        int(quest['id']),  # questId
+        quest_inputs_list  # List of input tuples
+    )
+
+    print(quest_params_data)
+
+    # 8. Create transaction
+    try:
+        txn = contract.functions.startQuest(quest_params_data).build_transaction({
+            'chainId': 42170,
+            'gas': 1400000,
+            'gasPrice': web3.eth.gas_price,
+            'nonce': web3.eth.get_transaction_count(address),
+        })
+    except Exception as e:
+        print(f"Error constructing transaction: {e}")
+        return None, "Failed to construct transaction"
 
     signed_txn = web3.eth.account.sign_transaction(txn, private_key=key)
     txn_hash = web3.eth.send_raw_transaction(signed_txn.rawTransaction)
     txn_reciept = web3.eth.wait_for_transaction_receipt(txn_hash)
 
     return txn_hash, pn.get_status_message(txn_reciept)
+
 
 
 def main_script():
