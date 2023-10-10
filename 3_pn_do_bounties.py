@@ -83,8 +83,7 @@ class BountyMappings:
 # Automatically create an instance of BountyMappings and initialize it
 _bounty_mappings = BountyMappings()
 
-
-def get_group_id_by_bounty_name(target_bounty_name, default_group_id):
+def get_group_id_by_bounty_name(target_bounty_name):
     """
     Looks up and returns the group ID associated with a specified "target_bounty_name" by searching in a mappings DataFrame.
 
@@ -97,10 +96,10 @@ def get_group_id_by_bounty_name(target_bounty_name, default_group_id):
 
     Description:
     This function performs a lookup in a mappings DataFrame to find the group ID associated with a given bounty name.
-    - If the target_bounty_name is blank or None, it returns the default_group_id.
+    - If the target_bounty_name is blank or None, it returns None.
     - It filters the DataFrame for the specified bounty_name, ignoring case and leading/trailing spaces.
     - If a matching bounty name is found in the DataFrame, it returns the associated group_id.
-    - If no matching bounty_name is found, it returns the default_group_id.
+    - If no matching bounty_name is found, it returns None.
     
     Exceptions:
     - If the mappings DataFrame file is not found, a FileNotFoundError is caught, and the function returns the default_group_id.
@@ -108,7 +107,7 @@ def get_group_id_by_bounty_name(target_bounty_name, default_group_id):
     """
 
     # on the rare case the target_bounty_name is blank return the default
-    if target_bounty_name is None: return default_group_id
+    if target_bounty_name is None: return None
 
     try:
         bounty_mappings_df = _bounty_mappings.get_mappings_df()
@@ -122,24 +121,23 @@ def get_group_id_by_bounty_name(target_bounty_name, default_group_id):
             group_id = result.iloc[0]['group_id']
             return group_id
         else:
-            return default_group_id  # No matching bounty_name found return the defualt
+            return None # No matching bounty_name found return the default
     except FileNotFoundError as e:
         print(f"File not found: {str(e)}")
-        return default_group_id
+        return None
     except Exception as e:
         print(f"get_group_id_by_bounty_name({target_bounty_name}): An error occurred: {str(e)}")
-        return default_group_id
+        return None
 
-def get_bounty_name_by_group_id(group_id, default_bounty_name=""):
+def get_bounty_name_by_group_id(group_id):
     """
     Get the bounty name associated with a given group ID from a mappings DataFrame.
 
     This function looks up and returns the bounty name associated with a specified group ID
-    by searching a mappings DataFrame. If no match is found, it returns the default bounty name.
+    by searching a mappings DataFrame. If no match is found, it returns None
 
     Parameters:
     - group_id (str): The group ID to search for in the mappings DataFrame.
-    - default_bounty_name (str, optional): The default bounty name to return if no match is found.
 
     Returns:
     - str: The bounty name associated with the specified group ID, or the default bounty name if not found.
@@ -165,13 +163,13 @@ def get_bounty_name_by_group_id(group_id, default_bounty_name=""):
             bounty_name = result.iloc[0]['bounty_name']
             return bounty_name
         else:
-            return default_bounty_name  # No matching group_id found, return the default
+            return None  # No matching group_id found, return the default
     except FileNotFoundError as e:
         print(f"File not found: {str(e)}")
-        return default_bounty_name
+        return None
     except Exception as e:
         print(f"get_bounty_name_by_group_id({group_id}): An error occurred: {str(e)}")
-        return default_bounty_name
+        return None
 
 # Initialize a dictionary to store cached results
 bounty_limit_cache = {}
@@ -249,7 +247,7 @@ class PirateBountyMappings:
 _pirate_bounty_mappings = PirateBountyMappings()
 
 
-def get_bounty_name_for_token_id(token_id, generation, default_bounty_name):
+def get_bounty_name_for_token_id(token_id, generation):
     """
     Get the bounty name associated with a specific Pirate NFT token ID and generation.
 
@@ -262,7 +260,6 @@ def get_bounty_name_for_token_id(token_id, generation, default_bounty_name):
     Parameters:
     - token_id (int): The Pirate NFT token ID to look up.
     - generation (int): The Generation of the Pirate ID.
-    - default_bounty_name (str): The default bounty name to return if no match is found.
 
     Returns:
     - str: The bounty name associated with the specified token ID and generation or the default bounty name.
@@ -281,7 +278,7 @@ def get_bounty_name_for_token_id(token_id, generation, default_bounty_name):
         if isinstance(bounty, str):
             return bounty
         
-    return default_bounty_name  # Token ID and generation not found in the DataFrame or bounty is not a string
+    return None # Token ID and generation not found in the DataFrame or bounty is not a string
 
 
 
@@ -423,13 +420,14 @@ class TokenIdExceedsMaxValue(Exception):
         self.token_id = token_id
         super().__init__(f"Token ID {token_id} exceeds the maximum value")
 
+# A list of fallback bounties #NEW
+_fallback_bounties = []
 
-
-def get_default_bounty():
+def input_choose_bounty(prompt="Please select the default bounty you're interested in:"):
     """
-    Prompts the user to choose a default bounty and returns the respective group ID and bounty name.
+    Prompts the user to choose a bounty and returns the respective group ID and bounty name.
 
-    This function displays a list of available bounties to the user, allowing them to select one as the default.
+    This function displays a list of available bounties to the user, allowing them to select one.
     It retrieves the bounty data from the mapping file and presents it to the user for selection.
 
     Returns:
@@ -459,7 +457,7 @@ def get_default_bounty():
 
     # Prompt the user to select a default bounty
     selected_group_id, selected_bounty_name = questionary.select(
-        "Please select the default bounty you're interested in:",
+        prompt,
         choices=choices
     ).ask()
 
@@ -578,6 +576,7 @@ def rate_limited_start_bounty(web3, contract_to_write, address, private_key, bou
     >>> print(success)
     1
     """
+
     buffer.append(f"   Sending {pn.C_CYAN}{len(pirates)} pirate(s){pn.C_END} on {pn.C_CYAN}'{bounty_name}'{pn.C_END}")
     buffer.append(f"      -> bounty id: {bounty_id}")
 
@@ -650,7 +649,7 @@ def rate_limited_end_bounty(web3, contract_to_write, address, private_key, bount
         return 0
 
 
-def get_bounties_to_execute(default_group_id, default_bounty_name, buffer, entity_ids):
+def get_bounties_to_execute(buffer, entity_ids):
     """
     Determine which bounties to execute based on a list of entity IDs.
 
@@ -662,8 +661,10 @@ def get_bounties_to_execute(default_group_id, default_bounty_name, buffer, entit
 
     Returns:
         dict: A dictionary where keys are group IDs and values are lists of pirates to execute for each bounty.
+        list: A list of entity Ids (pirates) that have no specific bounty and should be tried on fallback bounties
     """
-    bounties_to_execute = {default_group_id: []}  # Initialize a dictionary of bounties and pirates to execute
+    bounties_to_execute = {}  # Initialize a dictionary of bounties and pirates to execute
+    fallback_bounty_entities = [] # Initialize a dictionary of pirates that are going to be tried to send on default bounties
 
     for entity_id in entity_ids:
         pirate_contract_addr, pirate_token_id = entity_id.split('-')
@@ -671,24 +672,27 @@ def get_bounties_to_execute(default_group_id, default_bounty_name, buffer, entit
 
         #set the appropriate generation for the to make sure we look the proper pirate up
         generation = 1 if pirate_contract_addr != pn._contract_PirateNFT_addr else 0
-        bounty_name = get_bounty_name_for_token_id(pirate_token_id, generation, default_bounty_name)
-        bounty_group_id = get_group_id_by_bounty_name(bounty_name, default_group_id)
+        bounty_name = get_bounty_name_for_token_id(pirate_token_id, generation)
+        bounty_group_id = get_group_id_by_bounty_name(bounty_name)
+        pirate_entity = pn.pirate_token_id_to_entity(pirate_token_id, address=pirate_contract_addr)
 
-        if bounty_group_id != 0:
+        if bounty_group_id is not None and bounty_name is not None:
             if bounty_group_id not in bounties_to_execute:
                 bounties_to_execute[bounty_group_id] = []
 
             bounty_limit = get_bounty_limit_by_group_id(bounty_group_id)
             if len(bounties_to_execute[bounty_group_id]) < bounty_limit:
-                pirate_entity = pn.pirate_token_id_to_entity(pirate_token_id, address=pirate_contract_addr)
                 bounties_to_execute[bounty_group_id].append(pirate_entity)
-            #else: buffer.append(f"   {pn.C_RED}LIMIT Reached, Skipping adding {entity_id} to {bounty_name} - {bounty_group_id}{pn.C_END}")
 
-    return bounties_to_execute
+        # if we don't have a match on the group_id or bounty_name we add the pirate to default_bounty_pirates
+        else:
+            fallback_bounty_entities.append(pirate_entity)
+
+    return bounties_to_execute, fallback_bounty_entities
 
 
 
-def process_address(args, default_group_id, default_bounty_name, web3, bounty_contract, bounty_data, row, is_multi_threaded):
+def process_address(args, web3, bounty_contract, bounty_data, row, is_multi_threaded):
 
     start_time = time.time()
 
@@ -739,7 +743,7 @@ def process_address(args, default_group_id, default_bounty_name, web3, bounty_co
     buffer.append(f"\n   Wallet {wallet} has the following pirates: {', '.join(friendly_pirate_ids)}")
 
     # do bounties to execute
-    bounties_to_execute = get_bounties_to_execute(default_group_id, default_bounty_name, buffer, pirate_ids)
+    bounties_to_execute, fallback_bounty_pirates = get_bounties_to_execute(buffer, pirate_ids)
 
     # Now loop over bounties to execute and execute them
     for group_id, entity_ids in bounties_to_execute.items():   
@@ -759,8 +763,26 @@ def process_address(args, default_group_id, default_bounty_name, web3, bounty_co
 
             # Delay to allow the network to update the nonce
             if len(bounties_to_execute) > 1: time.sleep(1) 
-        #else: buffer.append(f"   {pn.C_RED}Unable to execute bounties for group_id: {group_id} {pn.C_END}")
-               
+
+    # Loop over fallback_bounty_pirates (list of entity_ids)
+    if len(_fallback_bounties) > 0:
+            
+        for entity_id in fallback_bounty_pirates:
+
+            for fallback_bounty in _fallback_bounties:
+
+                group_id, bounty_name = fallback_bounty
+                entity_ids = []
+                entity_ids.append(entity_id)
+                bounty_name, bounty_id = get_bounty_name_and_id(bounty_data, group_id, entity_ids)
+
+                bounty_result = rate_limited_start_bounty(web3, bounty_contract, address, private_key, bounty_name, bounty_id, entity_ids, buffer)
+                
+                # If the fallback bounty was a success then increment the number of started bounties and break the fallback loop for this enity
+                if bounty_result == 1: 
+                    num_started_bounties += 1
+                    break
+
 
     end_time = time.time()
     execution_time = end_time - start_time
@@ -809,9 +831,8 @@ def main():
     print("loop limit: ", args.loop_limit)
     print("wallets:", args.wallets)
 
-    # Display available bounties to the user only if we have start flag set
-    default_group_id = 0
-    default_bounty_name = None
+    # Set the times left to loop to the loop limit, if the arg is specified
+    # This just helps create a limit on how many times we can loop
     if args.loop_limit: times_left_to_loop = args.loop_limit
 
     # Load data from csv file
@@ -840,13 +861,24 @@ def main():
 
             default_group_id = args.default_group_id
             default_bounty_name = get_bounty_name_by_group_id(default_group_id)
+            _fallback_bounties.append((default_group_id, default_bounty_name))
             print("default_bounty_name:", default_bounty_name)
 
         else:
-            print("We are in the ELSE....")
-            default_group_id, default_bounty_name = get_default_bounty()
+            fallback_count = 1
+            # Keep iterating creating a list of fallback bounties until the user select none
+            while True:
+                fb_group_id, fb_bounty_name = input_choose_bounty(f"Please choose fallback bounty #{fallback_count}")
+                if fb_group_id == "0":
+                    break
+                _fallback_bounties.append((fb_group_id, fb_bounty_name))
+                fallback_count += 1
 
-        print(f"{pn.C_GREEN}default_group_id:{pn.C_CYAN} {default_group_id}{pn.C_END}\n\n")
+            print("Fallback Bounties:")
+            for i, (group_id, bounty_name) in enumerate(_fallback_bounties, start=1):
+                print(f"{pn.C_CYAN}Fallback Bounty #{i}:{pn.C_END}")
+                print(f"Group ID: {group_id}")
+                print(f"Bounty Name: {bounty_name}\n")
 
     # put in an initial starting delay
     if args.delay_start:
@@ -879,7 +911,7 @@ def main():
 
             with ThreadPoolExecutor(max_workers=args.max_threads) as executor:
                 # Submit jobs to the executor
-                futures = [executor.submit(process_address, args, default_group_id, default_bounty_name, web3, bounty_contract, bounty_data, row, True) 
+                futures = [executor.submit(process_address, args, web3, bounty_contract, bounty_data, row, True) 
                     for index, row in df_addressses.iterrows()]
 
                 # Collect results as they come in
@@ -892,7 +924,7 @@ def main():
         else:
 
             for index, row in df_addressses.iterrows():
-                buffer, num_ended_bounties, num_started_bounties = process_address(args, default_group_id, default_bounty_name, web3, bounty_contract, bounty_data, row, False)
+                buffer, num_ended_bounties, num_started_bounties = process_address(args, web3, bounty_contract, bounty_data, row, False)
                 ended_bounties += num_ended_bounties
                 started_bounties += num_started_bounties
 
