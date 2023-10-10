@@ -225,7 +225,6 @@ def get_bounty_limit_by_group_id(group_id):
         return MAX_PIRATE_ON_BOUNTY
 
 
-
 class PirateBountyMappings:
     _instance = None
 
@@ -238,13 +237,17 @@ class PirateBountyMappings:
     def initialize(self):
         if not self.__initialized:
             self.__initialized = True
-            self.df = pd.read_csv(pn.data_path("pn_pirates.csv"))
+            self.reload_data()  # Initialize by loading data from the CSV file
+
+    def reload_data(self):
+        self.df = pd.read_csv(pn.data_path("pn_pirates.csv"))
 
     def get_mappings_df(self):
         self.initialize()
         return self.df
-    
+
 _pirate_bounty_mappings = PirateBountyMappings()
+
 
 def get_bounty_name_for_token_id(token_id, generation, default_bounty_name):
     """
@@ -269,8 +272,6 @@ def get_bounty_name_for_token_id(token_id, generation, default_bounty_name):
     'Ore Galore'
     """
 
-    print(f"{token_id} {generation}")
-
     pirate_bounty_df = _pirate_bounty_mappings.get_mappings_df()
 
     matching_row = pirate_bounty_df[(pirate_bounty_df['tokenId'] == token_id) & (pirate_bounty_df['Gen'] == generation)]
@@ -278,7 +279,6 @@ def get_bounty_name_for_token_id(token_id, generation, default_bounty_name):
     if not matching_row.empty:
         bounty = matching_row.iloc[0]['Bounty']
         if isinstance(bounty, str):
-            print("match")
             return bounty
         
     return default_bounty_name  # Token ID and generation not found in the DataFrame or bounty is not a string
@@ -578,12 +578,13 @@ def rate_limited_start_bounty(web3, contract_to_write, address, private_key, bou
     >>> print(success)
     1
     """
-    buffer.append(f"   Sending {pn.C_CYAN}{len(pirates)}{pn.C_END} pirate(s) on {pn.C_CYAN}'{bounty_name}'{pn.C_END}: {bounty_id}")
+    buffer.append(f"   Sending {pn.C_CYAN}{len(pirates)} pirate(s){pn.C_END} on {pn.C_CYAN}'{bounty_name}'{pn.C_END}")
+    buffer.append(f"      -> bounty id: {bounty_id}")
 
     # Print out the pirates' addresses and token IDs
     for pirate in pirates:
         address_str, token_id = pn.entity_to_token(pirate)
-        buffer.append(f"     Pirate Address: {address_str}, Token ID: {token_id}")
+        buffer.append(f"      -> {address_str}, Token ID: {pn.C_CYAN}{token_id}{pn.C_END}")
 
     txn_dict = {
         'from': address,
@@ -597,11 +598,11 @@ def rate_limited_start_bounty(web3, contract_to_write, address, private_key, bou
     try:
         txn_receipt = pn.send_web3_transaction(web3, private_key, txn_dict)
         status_message = pn.get_status_message(txn_receipt)
-        buffer.append(f'   -> {pn.C_GREEN}startBounty {status_message}{pn.C_END}: {txn_receipt.transactionHash.hex()}')
+        buffer.append(f'      -> {pn.C_GREEN}startBounty {status_message}{pn.C_END}: {txn_receipt.transactionHash.hex()}\n')
         return 1
     except Exception as e:
         error_type = type(e).__name__
-        buffer.append(f"   -> {pn.C_RED}**Error startBounty{pn.C_END}: {e} - {error_type}")
+        buffer.append(f"      -> {pn.C_RED}**Error startBounty{pn.C_END}: {e} - {error_type}\n")
         return 0
 
 
@@ -641,11 +642,11 @@ def rate_limited_end_bounty(web3, contract_to_write, address, private_key, bount
         # Estimate the gas for this specific transaction
         txn_receipt = pn.send_web3_transaction(web3, private_key, txn_dict)
         status_message = pn.get_status_message(txn_receipt)
-        buffer.append(f'   -> {pn.C_GREEN}endBounty {status_message}{pn.C_END}: {txn_receipt.transactionHash.hex()}')
+        buffer.append(f'      -> {pn.C_GREEN}endBounty {status_message}{pn.C_END}: {txn_receipt.transactionHash.hex()}')
         return 1
     except Exception as e:
         error_type = type(e).__name__
-        buffer.append(f"   -> {pn.C_RED}**Error endBounty{pn.C_END}: {e} - {error_type}")
+        buffer.append(f"      -> {pn.C_RED}**Error endBounty{pn.C_END}: {e} - {error_type}")
         return 0
 
 
@@ -700,7 +701,7 @@ def process_address(args, default_group_id, default_bounty_name, web3, bounty_co
     address = row['address']
     private_key = row['key']
 
-    if is_multi_threaded: print(f"{pn.C_YELLOWLIGHT}starting thread {wallet}{pn.C_END}")
+    if is_multi_threaded: print(f"{pn.C_YELLOWLIGHT}starting thread for wallet {wallet}{pn.C_END}")
 
     buffer.append(f"{pn.C_GREEN}---------------------------------------------------------------------------")
     buffer.append(f"--------------{pn.C_END} {wallet} - {address}")
@@ -709,13 +710,13 @@ def process_address(args, default_group_id, default_bounty_name, web3, bounty_co
     # read the activeBounties for the address
     result, execution_time = rate_limited_active_bounty_ids(bounty_contract, address)
     
-    buffer.append(f"\n   Active Bounty IDs: {result}")
-    buffer.append(f"   fetched in {execution_time:.2f} seconds\n")
+    #buffer.append(f"\n   Active Bounty IDs: {result}")
+    #buffer.append(f"   fetched in {execution_time:.2f} seconds\n")
 
     # handle ending of bounties if we have the end flag set
     if args.end:
         for active_bounty_id in result:
-            buffer.append(f"   {pn.entity_to_token(active_bounty_id)}")
+            #buffer.append(f"   {pn.entity_to_token(active_bounty_id)}")
             num_ended_bounties += rate_limited_end_bounty(web3, bounty_contract, address, private_key, active_bounty_id, buffer)        
 
 
@@ -758,8 +759,7 @@ def process_address(args, default_group_id, default_bounty_name, web3, bounty_co
 
             # Delay to allow the network to update the nonce
             if len(bounties_to_execute) > 1: time.sleep(1) 
-        else:
-            buffer.append(f"   {pn.C_RED}Unable to execute bounties for group_id: {group_id} {pn.C_END}")
+        #else: buffer.append(f"   {pn.C_RED}Unable to execute bounties for group_id: {group_id} {pn.C_END}")
                
 
     end_time = time.time()
@@ -785,6 +785,8 @@ def parse_arguments():
     
     parser.add_argument("--delay_loop", type=int, default=0, help="Delay in minutes before executing the code again code (default: 0)")
 
+    parser.add_argument("--loop_limit", type=int, help="Number of times to loop")
+
     parser.add_argument("--default_group_id", type=str, default=None, help="Specify the default bounty group id (default: None)") 
 
     parser.add_argument("--wallets", type=str, default=None, help="Specify the wallet range you'd like (e.g., 1-10,15,88-92) (default: None)") 
@@ -804,11 +806,13 @@ def main():
     print("delay_start:", args.delay_start)
     print("delay_loop:", args.delay_loop)
     print("default_group_id:", args.default_group_id)
+    print("loop limit: ", args.loop_limit)
     print("wallets:", args.wallets)
 
     # Display available bounties to the user only if we have start flag set
     default_group_id = 0
     default_bounty_name = None
+    if args.loop_limit: times_left_to_loop = args.loop_limit
 
     # Load data from csv file
     if args.wallets: 
@@ -848,6 +852,9 @@ def main():
     if args.delay_start:
         pn.handle_delay(args.delay_start)
 
+    #pre initialize for thread safety
+    _pirate_bounty_mappings.get_mappings_df()
+
     while True:
 
         start_time = time.time()
@@ -862,13 +869,13 @@ def main():
         # Load the JSON data from the file
         bounty_data = pn.get_data(bounty_query)
 
+        # reload the pirate bounty mappings, because this could change between loop iterations and we want to reflect changes
+        _pirate_bounty_mappings.reload_data()
+
         # CODE if we are going to run bounties multithreaded 
         if args.max_threads > 0 :
 
             print("Initiating Multithreading")
-
-            #pre initialize for thread safety
-            _pirate_bounty_mappings.get_mappings_df()
 
             with ThreadPoolExecutor(max_workers=args.max_threads) as executor:
                 # Submit jobs to the executor
@@ -901,7 +908,10 @@ def main():
             # continue looping with necessary delay
             pn.handle_delay(args.delay_loop)
 
-
+        if args.loop_limit:
+            times_left_to_loop -= 1
+            print(f"We have {times_left_to_loop} times left to loop")
+            if times_left_to_loop < 1: break
 
 
 if __name__ == "__main__":

@@ -29,11 +29,13 @@ def fetch_user_inputs():
     GET_ETH_BALANCE = True if get_eth_balance_input.lower() == 'y' else False
     GET_ENERGY_BALANCE = True if get_energy_input.lower() == 'y' else False
 
+
 def merge_data(data_list):
     merged_data = {"data": {"accounts": []}}
     for data in data_list:
         merged_data["data"]["accounts"].extend(data["data"]["accounts"])
     return merged_data
+
 
 def excel_sheet(json_string, ordered_addresses, file_name_start, max_thread_count=MAX_THREADS):
     print(f"Beginning to construct Excel({max_thread_count} threads)")
@@ -78,13 +80,18 @@ def excel_sheet(json_string, ordered_addresses, file_name_start, max_thread_coun
 
     print(f"Iterating over {number_of_accounts} accounts to build the Excel output:")
 
-    # Using ThreadPoolExecutor to process the wallets.
-    with ThreadPoolExecutor(max_workers=max_thread_count) as executor:
-        # Map each account to a thread.
-        futures = [executor.submit(handle_wallet, index+1, eth_to_usd_price, row) for index, row in df_accounts.iterrows()]
+    # Check if max_thread_count is less than or equal to 1
+    if max_thread_count <= 1:
+        # Process wallets without threads
+        results = [handle_wallet(index + 1, eth_to_usd_price, row) for index, row in df_accounts.iterrows()]
+    else:
+        # Using ThreadPoolExecutor to process the wallets.
+        with ThreadPoolExecutor(max_workers=max_thread_count) as executor:
+            # Map each account to a thread.
+            futures = [executor.submit(handle_wallet, index + 1, eth_to_usd_price, row) for index, row in df_accounts.iterrows()]
 
-    # Collect results as they come in.
-    results = [future.result() for future in futures]
+        # Collect results as they come in.
+        results = [future.result() for future in futures]
 
     # Append each result to the main DataFrame.
     for result in results:

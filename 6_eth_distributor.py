@@ -6,16 +6,24 @@ from termcolor import colored
 
 GAS_LIMIT = 50000
 
-# Get the sender address from the file (will default with no input if only one sender in file)
-sender_choice_file = pn.data_path("addresses_with_pk_3.csv")
-sender_data = pn.select_wallet(sender_choice_file)
-sender_addr = sender_data['address']
-sender_key = sender_data['key']
+range_input = input("Input the wallet you'd like to send from from: ")
+walletlist = pn.parse_number_ranges(range_input)
+sender_data = pn.get_full_wallet_data(walletlist)
+
+if not sender_data.empty:
+    sender_addr = sender_data.iloc[0]['address']
+    sender_key = sender_data.iloc[0]['key']
+else:
+    # Handle the case when sender_data is empty (no rows found)
+    print("No data found for the specified range.")
+
+# Now you have the 'address' and 'key' of the first row in sender_data
 
 # Load up the recipient addresses
-file_path = pn.data_path("addresses_with_pk_3.csv")
-df = pd.read_csv(file_path)
-recipient_addresses = df['address'].tolist()
+range_input = input("Input the wallet range you'd like to send to (e.g., 1 or 1-9): ")
+walletlist = pn.parse_number_ranges(range_input)
+recipient_data = pn.get_full_wallet_data(walletlist)
+recipient_addresses = recipient_data['address'].tolist()
 recipient_count = len(recipient_addresses)
 
 # Get sender eth_balance and USD estimate of the wallet sending

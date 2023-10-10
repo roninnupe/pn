@@ -33,7 +33,7 @@ C_YELLOWLIGHT = "\033[33m"
 ######################################################
 
 URL_COINCAP_API = "https://api.coincap.io/v2/assets/ethereum"
-URL_ARB_NOVA_RPC = "https://nova.arbitrum.io/rpc"
+URL_ARB_NOVA_RPC = "https://nova.arbitrum.io/rpc" #"https://nova.arbitrum.io/rpc" #"https://arbitrum-nova.public.blastapi.io" 
 URL_ARB_NOVA_RPC_ALT = "https://arb1.arbitrum.io/rpc"
 URL_PIRATE_NATION_GRAPH_API = "https://subgraph.satsuma-prod.com/208eb2825ebd/proofofplay/pn-nova/api"
 NOVA_CHAIN_ID = 42170
