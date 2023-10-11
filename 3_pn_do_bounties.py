@@ -765,18 +765,30 @@ def process_address(args, web3, bounty_contract, bounty_data, row, is_multi_thre
             if len(bounties_to_execute) > 1: time.sleep(1) 
 
     # Loop over fallback_bounty_pirates (list of entity_ids)
+    _fallback_bounties_copy = list(_fallback_bounties)
+
     if len(_fallback_bounties) > 0:
             
         for entity_id in fallback_bounty_pirates:
 
-            for fallback_bounty in _fallback_bounties:
+            for fallback_bounty in _fallback_bounties_copy:
 
+                bounty_result = 0
                 group_id, bounty_name = fallback_bounty
                 entity_ids = []
                 entity_ids.append(entity_id)
                 bounty_name, bounty_id = get_bounty_name_and_id(bounty_data, group_id, entity_ids)
 
-                bounty_result = rate_limited_start_bounty(web3, bounty_contract, address, private_key, bounty_name, bounty_id, entity_ids, buffer)
+                # check first if we have a pending bounty, because we will not try to send pirates on a bounty that's pending
+                has_pending_bounty = rate_limited_has_pending_bounty(bounty_contract, address, group_id)      
+                
+                if has_pending_bounty:
+                    _fallback_bounties_copy.remove(fallback_bounty)
+                    buffer.append(f"   {pn.C_YELLOW}'{bounty_name}' is still pending{pn.C_END}")
+                else:
+                    bounty_result = rate_limited_start_bounty(web3, bounty_contract, address, private_key, bounty_name, bounty_id, entity_ids, buffer)
+                
+                time.sleep(1)
                 
                 # If the fallback bounty was a success then increment the number of started bounties and break the fallback loop for this enity
                 if bounty_result == 1: 
@@ -905,7 +917,7 @@ def main():
         _pirate_bounty_mappings.reload_data()
 
         # CODE if we are going to run bounties multithreaded 
-        if args.max_threads > 0 :
+        if args.max_threads > 1 :
 
             print("Initiating Multithreading")
 
