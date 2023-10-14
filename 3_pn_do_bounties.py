@@ -1,4 +1,6 @@
 import argparse
+import requests
+import math
 import time
 import questionary
 import pandas as pd
@@ -8,7 +10,11 @@ from concurrent.futures import ThreadPoolExecutor
 from ratelimit import limits, sleep_and_retry
 
 MAX_THREADS = 2
-MAX_PIRATE_ON_BOUNTY = 20  
+MAX_PIRATE_ON_BOUNTY = 20
+SLOW_FACTOR = 0.5  
+
+_successfully_started_bounties = {}
+_pending_bounties = {}
 
 # The query used to get all bounties from the PN Grpah
 bounty_query = """
@@ -238,7 +244,7 @@ class PirateBountyMappings:
             self.reload_data()  # Initialize by loading data from the CSV file
 
     def reload_data(self):
-        self.df = pd.read_csv(pn.data_path("pn_pirates.csv"))
+        self.df = pd.read_csv(pn.data_path("pn_pirates.csv"), low_memory=False)
 
     def get_mappings_df(self):
         self.initialize()
@@ -279,7 +285,6 @@ def get_bounty_name_for_token_id(token_id, generation):
             return bounty
         
     return None # Token ID and generation not found in the DataFrame or bounty is not a string
-
 
 
 def get_bounty_name_and_id(data, group_id, entity_ids) -> (str, int):
@@ -420,6 +425,32 @@ class TokenIdExceedsMaxValue(Exception):
         self.token_id = token_id
         super().__init__(f"Token ID {token_id} exceeds the maximum value")
 
+def insert_address_into_dictionary(dictionary, key, address):
+    """
+    Insert an address into a dictionary of lists associated with keys, ensuring uniqueness.
+
+    Parameters:
+        dictionary (dict): The dictionary to insert the address into.
+        key (hashable): The key to associate with the address in the dictionary.
+        address: The address to insert into the list associated with the key.
+
+    Explanation:
+        This function is used to maintain a dictionary where each key is associated with a list of addresses.
+        It ensures that addresses are unique within each list.
+
+        - If the key is not already in the dictionary, a new key is created with a list containing the address.
+        - If the key is already in the dictionary, the function checks if the address is already in the list.
+          - If the address is not in the list, it's appended to the list.
+          - If the address is already in the list, it won't be added again to maintain uniqueness.
+    """
+    if key not in dictionary:
+        # If the key is not in the dictionary, create a new key with a list containing the address.
+        dictionary[key] = [address]
+    elif address not in dictionary[key]:
+        # If the key is in the dictionary and the address is not in the list, append the address to the list.
+        dictionary[key].append(address)
+
+
 # A list of fallback bounties #NEW
 _fallback_bounties = []
 
@@ -464,7 +495,6 @@ def input_choose_bounty(prompt="Please select the default bounty you're interest
     return selected_group_id, selected_bounty_name
 
 
-# Rate-limited function to fetch active bounty IDs for an account.
 @limits(calls=10, period=1)
 def rate_limited_active_bounty_ids(bounty_contract, address):
     """
@@ -578,6 +608,7 @@ def rate_limited_start_bounty(web3, contract_to_write, address, private_key, bou
     """
 
     buffer.append(f"   Sending {pn.C_CYAN}{len(pirates)} pirate(s){pn.C_END} on {pn.C_CYAN}'{bounty_name}'{pn.C_END}")
+    buffer.append(f"      -> entities: {pirates}")
     buffer.append(f"      -> bounty id: {bounty_id}")
 
     # Print out the pirates' addresses and token IDs
@@ -598,6 +629,7 @@ def rate_limited_start_bounty(web3, contract_to_write, address, private_key, bou
         txn_receipt = pn.send_web3_transaction(web3, private_key, txn_dict)
         status_message = pn.get_status_message(txn_receipt)
         buffer.append(f'      -> {pn.C_GREEN}startBounty {status_message}{pn.C_END}: {txn_receipt.transactionHash.hex()}\n')
+        insert_address_into_dictionary(_successfully_started_bounties, bounty_name, address)
         return 1
     except Exception as e:
         error_type = type(e).__name__
@@ -605,7 +637,12 @@ def rate_limited_start_bounty(web3, contract_to_write, address, private_key, bou
         return 0
 
 
-# Rate-limited function to end a bounty.
+# Custom exception class for status message "failed"
+class BountyFailedError(Exception):
+    def __init__(self, message="Bounty failed"):
+        self.message = message
+        super().__init__(self.message)
+
 @limits(calls=10, period=1)
 def rate_limited_end_bounty(web3, contract_to_write, address, private_key, bounty_id, buffer):
     """
@@ -641,8 +678,15 @@ def rate_limited_end_bounty(web3, contract_to_write, address, private_key, bount
         # Estimate the gas for this specific transaction
         txn_receipt = pn.send_web3_transaction(web3, private_key, txn_dict)
         status_message = pn.get_status_message(txn_receipt)
+        
+        if status_message == "failed":
+            raise BountyFailedError(f"Bounty failed: {txn_receipt.transactionHash.hex()}")
+        
         buffer.append(f'      -> {pn.C_GREEN}endBounty {status_message}{pn.C_END}: {txn_receipt.transactionHash.hex()}')
         return 1
+    except BountyFailedError as e:
+        buffer.append(f"      -> {pn.C_RED}**Error endBounty{pn.C_END}: {e}")
+        return 0
     except Exception as e:
         error_type = type(e).__name__
         buffer.append(f"      -> {pn.C_RED}**Error endBounty{pn.C_END}: {e} - {error_type}")
@@ -693,6 +737,9 @@ def get_bounties_to_execute(buffer, entity_ids):
 
 
 def process_address(args, web3, bounty_contract, bounty_data, row, is_multi_threaded):
+
+    global _pending_bounties
+    global _successfully_started_bounties
 
     start_time = time.time()
 
@@ -758,11 +805,14 @@ def process_address(args, web3, bounty_contract, bounty_data, row, is_multi_thre
             
             if has_pending_bounty:
                 buffer.append(f"   {pn.C_YELLOW}'{bounty_name}' is still pending{pn.C_END}")
+                insert_address_into_dictionary(_pending_bounties,bounty_name,address) 
             else:
                 num_started_bounties += rate_limited_start_bounty(web3, bounty_contract, address, private_key, bounty_name, bounty_id, entity_ids, buffer)
+                 # Delay to allow the network to update the nonce
+                time.sleep(SLOW_FACTOR) 
 
-            # Delay to allow the network to update the nonce
-            if len(bounties_to_execute) > 1: time.sleep(1) 
+           
+            
 
     # Loop over fallback_bounty_pirates (list of entity_ids)
     _fallback_bounties_copy = list(_fallback_bounties)
@@ -785,10 +835,11 @@ def process_address(args, web3, bounty_contract, bounty_data, row, is_multi_thre
                 if has_pending_bounty:
                     _fallback_bounties_copy.remove(fallback_bounty)
                     buffer.append(f"   {pn.C_YELLOW}'{bounty_name}' is still pending{pn.C_END}")
+                    insert_address_into_dictionary(_pending_bounties,bounty_name,address) 
                 else:
                     bounty_result = rate_limited_start_bounty(web3, bounty_contract, address, private_key, bounty_name, bounty_id, entity_ids, buffer)
-                
-                time.sleep(1)
+                    # Delay to allow the network to update the nonce
+                    time.sleep(SLOW_FACTOR) 
                 
                 # If the fallback bounty was a success then increment the number of started bounties and break the fallback loop for this enity
                 if bounty_result == 1: 
@@ -821,7 +872,9 @@ def parse_arguments():
 
     parser.add_argument("--loop_limit", type=int, help="Number of times to loop")
 
-    parser.add_argument("--default_group_id", type=str, default=None, help="Specify the default bounty group id (default: None)") 
+    parser.add_argument("--loop_buffer", type=int, default=150, help="Number of seconds for the loop buffer (default: 150)")
+
+    parser.add_argument("--fallback_group_ids", type=str, default=None, help="Specify the fallback bounty groups id (default: None)") 
 
     parser.add_argument("--wallets", type=str, default=None, help="Specify the wallet range you'd like (e.g., 1-10,15,88-92) (default: None)") 
 
@@ -831,6 +884,9 @@ def parse_arguments():
 
 
 def main():
+
+    global _pending_bounties
+    global _successfully_started_bounties    
     
     # Pull arguments out for start, end, and delay
     args = parse_arguments()
@@ -839,8 +895,9 @@ def main():
     print("max_threads:", args.max_threads)
     print("delay_start:", args.delay_start)
     print("delay_loop:", args.delay_loop)
-    print("default_group_id:", args.default_group_id)
+    print("fallback_group_ids:", args.fallback_group_ids)
     print("loop limit: ", args.loop_limit)
+    print("loop_buffer:", args.loop_buffer)
     print("wallets:", args.wallets)
 
     # Set the times left to loop to the loop limit, if the arg is specified
@@ -869,12 +926,15 @@ def main():
 
     if args.start:
 
-        if args.default_group_id:
+        if args.fallback_group_ids:
 
-            default_group_id = args.default_group_id
-            default_bounty_name = get_bounty_name_by_group_id(default_group_id)
-            _fallback_bounties.append((default_group_id, default_bounty_name))
-            print("default_bounty_name:", default_bounty_name)
+            fallback_group_ids = args.fallback_group_ids.split(',')
+            for args_group_id in fallback_group_ids:
+                fb_group_id = args_group_id.strip()
+                fb_bounty_name = get_bounty_name_by_group_id(group_id)
+
+                if fb_bounty_name is not None:
+                    _fallback_bounties.append((fb_group_id, fb_bounty_name))
 
         else:
             fallback_count = 1
@@ -941,16 +1001,50 @@ def main():
                 started_bounties += num_started_bounties
 
         end_time = time.time()
-        execution_time = end_time - start_time           
+        execution_time = end_time - start_time    
+        number_of_wallets = len(df_addressses)
+        average_execution_time = execution_time / number_of_wallets 
 
-        print(f"\nclaimed {ended_bounties} bounties and started {started_bounties} bounties in {execution_time:.2f} seconds")
+        print(f"\nclaimed {ended_bounties} bounties and started {started_bounties} bounties in {execution_time:.2f} seconds (avg of {average_execution_time:.2f} s for {number_of_wallets} wallet(s))")        
+        
+        # Now we try to print out the pending bounties and the started bounty summary
+        print(f"\n{pn.C_YELLOW}Pending Bounties:{pn.C_END}")
+        if not _pending_bounties:
+            print("   None")
+        else:
+            for key, value in _pending_bounties.items():
+                print(f"   {key}: {len(value)}")
+
+        print(f"\n{pn.C_GREEN}Successfully Started Bounties:{pn.C_END}")
+        if not _successfully_started_bounties:
+            print("   None")
+        else:
+            for key, value in _successfully_started_bounties.items():
+                print(f"   {key}: {len(value)}")
+        print("")
+
+        # Clear these out once we print out the summary
+        _pending_bounties = {}
+        _successfully_started_bounties = {}            
 
         # end the loop if we don't have looping speified
         if args.delay_loop == 0:
             break
         else:
+
+            # Calculate the seconds_to_shave_off: use the actual execution time minus a 120 second buffer to give some breathing room
+            # Example if the exeution time takes 4 minute, we will take (360-120) = 240 seconds and shave it off the delay_loop 
+            # The purpose of this is to try to make functions land more precisely closer to when they wrap up 
+            seconds_to_shave_off = math.floor(execution_time - args.loop_buffer)
+            print(f"We are trying to otimize by shaving off {seconds_to_shave_off} seconds")
+
+            # Check if time_adjustment is negative and set it to 0 if it is
+            if seconds_to_shave_off < 0:
+                seconds_to_shave_off = 0  
+
             # continue looping with necessary delay
-            pn.handle_delay(args.delay_loop)
+            delay_in_seconds = (args.delay_loop * 60) - seconds_to_shave_off 
+            pn.handle_delay(delay_in_seconds, time_period="second")
 
         if args.loop_limit:
             times_left_to_loop -= 1

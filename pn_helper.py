@@ -4,6 +4,7 @@
 import os
 import sys
 import time
+import datetime
 import questionary
 import json
 import requests
@@ -382,12 +383,24 @@ def to_web3_address(address):
     return Web3.to_checksum_address(address.lower())
 
 
-# Sends a web3 transaction and returns it's transaction reciept
+# Custom exception class for gas limit exceeded
+class GasLimitExceededError(Exception):
+    def __init__(self, message="Gas limit exceeded"):
+        self.message = message
+        super().__init__(self.message)
+
+# Define your GAS_LIMIT constant
+GAS_LIMIT = 900000 
+
+# Sends a web3 transaction and returns its transaction receipt
 def send_web3_transaction(web3, private_key, txn_dict):
     # Estimate the gas for this specific transaction
-    txn_dict['gas'] = web3.eth.estimate_gas(txn_dict)
+    estimated_gas = web3.eth.estimate_gas(txn_dict)
 
-    #print(f"Gas: {txn_dict['gas']}")
+    if estimated_gas > GAS_LIMIT:
+        raise GasLimitExceededError(f"Estimated Gas: {estimated_gas}, GAS_LIMIT: {GAS_LIMIT}")
+
+    txn_dict['gas'] = estimated_gas
 
     signed_txn = web3.eth.account.sign_transaction(txn_dict, private_key=private_key)
 
@@ -398,6 +411,7 @@ def send_web3_transaction(web3, private_key, txn_dict):
     txn_receipt = web3.eth.wait_for_transaction_receipt(txn_hash)
 
     return txn_receipt
+
 
 
 # Convert a transaction reciept into it's display friendly message
@@ -591,19 +605,50 @@ def select_xlsx_file():
         return f"{directory_path}/{selected_file}"
 
 
-def handle_delay(delay_in_minutes):
-    if delay_in_minutes is not None and delay_in_minutes > 0:
-        if delay_in_minutes >= 60:
-            hours = delay_in_minutes // 60
-            minutes = delay_in_minutes % 60
-            print(f"Delaying execution for {hours} hours {minutes} minutes...")
+def handle_delay(delay, time_period="minute"):
+    
+    if delay is not None and delay > 0:
+        current_time = datetime.datetime.now()
+        formatted_time = current_time.strftime("%Y-%m-%d %H:%M:%S")
+
+        if time_period == "hour":
+            delay_seconds = delay * 3600
+        elif time_period == "second":
+            delay_seconds = delay
         else:
-            print(f"Delaying execution for {delay_in_minutes} minutes...")
-        
-        for remaining in range(delay_in_minutes * 60, 0, -1):
-            sys.stdout.write(f"\rTime remaining: {remaining // 3600} hours {(remaining % 3600) // 60} minutes {remaining % 60} seconds")
+            delay_seconds = delay * 60
+
+        # Convert delay_seconds into hours, minutes, and seconds
+        hours = delay_seconds // 3600
+        minutes = (delay_seconds % 3600) // 60
+        seconds = delay_seconds % 60
+
+        # Build the delay message
+        delay_message = f"{formatted_time} - Delaying for"
+
+        # Add hours if it's greater than zero
+        if hours > 0:
+            delay_message += f" {hours} hours"
+
+        # Add minutes if it's greater than zero
+        if minutes > 0:
+            delay_message += f" {minutes} minutes"
+
+        # Add seconds if it's greater than zero
+        if seconds > 0:
+            delay_message += f" {seconds} seconds"
+
+        # Print the delay message
+        print(delay_message)
+
+        for remaining in range(delay_seconds, 0, -1):
+            hours_remaining = remaining // 3600
+            minutes_remaining = (remaining % 3600) // 60
+            seconds_remaining = remaining % 60
+            sys.stdout.write(f"\rTime remaining: {hours_remaining} hours {minutes_remaining} minutes {seconds_remaining} seconds")
             sys.stdout.flush()
             time.sleep(1)
+
         print("\nDelay complete. Resuming execution.")
 
 
