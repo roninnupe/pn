@@ -4,20 +4,34 @@ from termcolor import colored
 
 GAS_LIMIT = 50000
 
-# Get the recipient address from the file (will default with no input if only one recipient in file)
-recipient_choice_file = pn.data_path("addresses_with_pk_3.csv")
-recipient_data = pn.select_wallet(recipient_choice_file)
-recipient_addr = recipient_data['address']
+sender_range_input = input("Input the wallets you'd like to collect eth from from: ")
+walletlist = pn.parse_number_ranges(sender_range_input)
+sender_data = pn.get_full_wallet_data(walletlist)
 
-# get the collection addresses from the file
-collection_addresses_file = pn.data_path("addresses_with_pk_3.csv")
-df = pd.read_csv(collection_addresses_file)
+# Get the recipient address from the file (will default with no input if only one recipient in file)
+recipient_range_input = input("Input the wallet you'd like to collect eth to: ")
+walletlist = pn.parse_number_ranges(recipient_range_input)
+recipient_data = pn.get_full_wallet_data(walletlist)
+
+if not recipient_data.empty:
+    recipient_addr = recipient_data.iloc[0]['address']
+    identifier = recipient_data.iloc[0]['identifier']
+else:
+    # Handle the case when sender_data is empty (no rows found)
+    print("No data found for the specified range.")
+
+print(f"About to collect eth from wallets {sender_range_input} and send to {identifier} - {recipient_addr}")
+user_input = input("Do you want to proceed? (y/n): ").strip().lower()
+if user_input != "y": 
+    if user_input != "n": print("Terminating script. You must explicitly enter y to proceed")
+    else: print("Okay, no Eth will be collected! Have a great day")
+    exit()
 
 total_sent_eth = 0
 total_gas_cost_eth = 0
 
-for index, row in df.iterrows():
-    sender_name = row['wallet']
+for index, row in sender_data.iterrows():
+    sender_name = row['identifier']
     sender_address = row['address']
     sender_pk = row['key']
     amount_in_eth = pn.get_nova_eth_balance(sender_address)
