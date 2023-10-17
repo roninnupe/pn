@@ -390,7 +390,7 @@ class GasLimitExceededError(Exception):
         super().__init__(self.message)
 
 # Define your GAS_LIMIT constant
-GAS_LIMIT = 1600000 
+GAS_LIMIT = 1610555 
 
 # Sends a web3 transaction and returns its transaction receipt
 def send_web3_transaction(web3, private_key, txn_dict):

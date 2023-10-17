@@ -241,10 +241,11 @@ class PirateBountyMappings:
     def initialize(self):
         if not self.__initialized:
             self.__initialized = True
-            self.reload_data()  # Initialize by loading data from the CSV file
+            self.reload_data()  # Initialize by loading data from the Excel file
 
     def reload_data(self):
-        self.df = pd.read_csv(pn.data_path("pn_pirates.csv"), low_memory=False)
+        # Load data from pn_pirates.xlsx (Excel file)
+        self.df = pd.read_excel(pn.data_path("inventory/pirates_bounty.xlsx"), engine='openpyxl')
 
     def get_mappings_df(self):
         self.initialize()
@@ -792,11 +793,15 @@ def process_address(args, web3, bounty_contract, bounty_data, row, is_multi_thre
     # do bounties to execute
     bounties_to_execute, fallback_bounty_pirates = get_bounties_to_execute(buffer, pirate_ids)
 
+    # make a copy of the fall_back bounties to remove bounties out of it to prevent redundacy
+    _fallback_bounties_copy = list(_fallback_bounties)    
+
     # Now loop over bounties to execute and execute them
     for group_id, entity_ids in bounties_to_execute.items():   
 
         bounty_name, bounty_id = get_bounty_name_and_id(bounty_data, group_id, entity_ids)
-
+        bounty_result = 0
+        
         # start bounty if we find a valid bounty
         if bounty_id != 0:
 
@@ -807,16 +812,22 @@ def process_address(args, web3, bounty_contract, bounty_data, row, is_multi_thre
                 buffer.append(f"   {pn.C_YELLOW}'{bounty_name}' is still pending{pn.C_END}")
                 insert_address_into_dictionary(_pending_bounties,bounty_name,address) 
             else:
-                num_started_bounties += rate_limited_start_bounty(web3, bounty_contract, address, private_key, bounty_name, bounty_id, entity_ids, buffer)
-                 # Delay to allow the network to update the nonce
+                bounty_result = rate_limited_start_bounty(web3, bounty_contract, address, private_key, bounty_name, bounty_id, entity_ids, buffer)
+
+                # if the bounty was successfully executed
+                if bounty_result > 0 :
+
+                    # increment our number of started bounties
+                    num_started_bounties += bounty_result
+
+                    # since we started this bounty, check if it's in the fallback bounties and remove it if it is
+                    if (group_id, bounty_name) in _fallback_bounties_copy:
+                        _fallback_bounties_copy.remove((group_id, bounty_name))
+
+                # Delay to allow the network to update the nonce
                 time.sleep(SLOW_FACTOR) 
 
-           
-            
-
     # Loop over fallback_bounty_pirates (list of entity_ids)
-    _fallback_bounties_copy = list(_fallback_bounties)
-
     if len(_fallback_bounties) > 0:
             
         for entity_id in fallback_bounty_pirates:
@@ -845,7 +856,6 @@ def process_address(args, web3, bounty_contract, bounty_data, row, is_multi_thre
                 if bounty_result == 1: 
                     num_started_bounties += 1
                     break
-
 
     end_time = time.time()
     execution_time = end_time - start_time

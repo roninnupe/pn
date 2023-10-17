@@ -215,7 +215,7 @@ def start_quest(contract, address, key, quest):
     try:
         txn = contract.functions.startQuest(quest_params_data).build_transaction({
             'chainId': 42170,
-            'gas': 2000000,
+            'gas': 2500000,
             'gasPrice': web3.eth.gas_price,
             'nonce': web3.eth.get_transaction_count(address),
         })
