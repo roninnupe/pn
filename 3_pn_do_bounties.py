@@ -857,7 +857,7 @@ def process_address(args, web3, bounty_contract, bounty_data, row, is_multi_thre
                     _fallback_bounties_to_remove.append(fallback_bounty)
 
                     address_str, token_id = pn.entity_to_token(entity_id)
-                    buffer.append(f"   Sending {pn.C_CYAN}1 pirate(s) {pn.C_END} on {pn.C_CYAN}'{bounty_name}'{pn.C_END}")
+                    buffer.append(f"   Sending {pn.C_CYAN}1 pirate(s) {pn.C_END}on {pn.C_CYAN}'{bounty_name}'{pn.C_END}")
                     buffer.append(f"      -> entities: {entity_id}")
                     buffer.append(f"      -> bounty id: {bounty_id}")
                     buffer.append(f"      -> {address_str}, Token ID: {pn.C_CYAN}{token_id}{pn.C_END}")
