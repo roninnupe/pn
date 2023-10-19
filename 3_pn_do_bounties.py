@@ -819,7 +819,10 @@ def process_address(args, web3, bounty_contract, bounty_data, row, is_multi_thre
         execution_time = end_time - start_time
         buffer.append(f"\n   {pn.C_CYAN}Execution time: {execution_time:.2f} seconds, ending @ {pn.formatted_time_str()}{pn.C_END}")
         buffer.append(f"{pn.C_GREEN}---------------------------------------------------------------------------{pn.C_END}")   
-        print("\n".join(buffer))          
+        print("\n".join(buffer))
+
+        insert_address_into_dictionary(_pending_bounties,f"Wallets with {active_bounty_count} pirate(s) and Unknown active bounty",address)    
+
         return buffer, num_ended_bounties, num_started_bounties
 
     # do bounties to execute
