@@ -781,17 +781,19 @@ def process_address(args, web3, bounty_contract, bounty_data, row, is_multi_thre
     buffer.append(f"{pn.C_GREEN}---------------------------------------------------------------------------{pn.C_END}")
 
     # read the activeBounties for the address
-    result, execution_time = rate_limited_active_bounty_ids(bounty_contract, address)
+    active_bounty_ids, execution_time = rate_limited_active_bounty_ids(bounty_contract, address)
+    active_bounty_count = len(active_bounty_ids)
     
     #buffer.append(f"\n   Active Bounty IDs: {result}")
     #buffer.append(f"   fetched in {execution_time:.2f} seconds\n")
 
     # handle ending of bounties if we have the end flag set
     if args.end:
-        for active_bounty_id in result:
+        for active_bounty_id in active_bounty_ids:
             #buffer.append(f"   {pn.entity_to_token(active_bounty_id)}")
-            num_ended_bounties += rate_limited_end_bounty(web3, bounty_contract, address, private_key, active_bounty_id, buffer)        
-
+            end_bounty_result = rate_limited_end_bounty(web3, bounty_contract, address, private_key, active_bounty_id, buffer)
+            active_bounty_count -= end_bounty_result
+            num_ended_bounties += end_bounty_result     
 
     # if we don't have start bounties set then continue and skip all the remaining code below
     if not args.start:
@@ -811,13 +813,22 @@ def process_address(args, web3, bounty_contract, bounty_data, row, is_multi_thre
     # Now friendly_pirate_ids will contain the parts after the dash, e.g., ["456", "1011"]
     buffer.append(f"\n   Wallet {wallet} has the following pirates: {', '.join(friendly_pirate_ids)}\n")
 
+    if active_bounty_count == len(pirate_ids) :
+        buffer.append(f"   {pn.C_MAGENTA}All {active_bounty_count} pirate(s) are on active bounties. {pn.C_END}\n")
+        end_time = time.time()
+        execution_time = end_time - start_time
+        buffer.append(f"\n   {pn.C_CYAN}Execution time: {execution_time:.2f} seconds, ending @ {pn.formatted_time_str()}{pn.C_END}")
+        buffer.append(f"{pn.C_GREEN}---------------------------------------------------------------------------{pn.C_END}")   
+        print("\n".join(buffer))          
+        return buffer, num_ended_bounties, num_started_bounties
+
     # do bounties to execute
     bounties_to_execute, fallback_bounty_pirates = get_bounties_to_execute(buffer, pirate_ids)
 
     # make a copy of the fall_back bounties to remove bounties out of it to prevent redundacy
     _fallback_bounties_copy = list(_fallback_bounties)  
 
-    buffer.append(f"{pn.C_MAGENTA}Excel Specified Bounties...{pn.C_END}\n")    
+    buffer.append(f"{pn.C_MAGENTA}   Excel Specified Bounties...{pn.C_END}\n")    
     if len(bounties_to_execute.items()) == 0:
         buffer.append("   None")
 
@@ -852,7 +863,7 @@ def process_address(args, web3, bounty_contract, bounty_data, row, is_multi_thre
                 # Delay to allow the network to update the nonce
                 time.sleep(SLOW_FACTOR) 
 
-    buffer.append(f"\n{pn.C_MAGENTA}Fallback Bounty Pirates...{pn.C_END}\n")
+    buffer.append(f"\n{pn.C_MAGENTA}   Fallback Bounty Pirates...{pn.C_END}\n")
 
     # Loop over fallback_bounty_pirates (list of entity_ids)
     if len(_fallback_bounties) > 0 and len(fallback_bounty_pirates) > 0:
