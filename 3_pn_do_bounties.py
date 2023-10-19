@@ -776,7 +776,7 @@ def process_address(args, web3, bounty_contract, bounty_data, row, is_multi_thre
     if not args.start:
         end_time = time.time()
         execution_time = end_time - start_time
-        buffer.append(f"\n   {pn.C_CYAN}Execution time: {execution_time:.2f} seconds{pn.C_END}")
+        buffer.append(f"\n   {pn.C_CYAN}Execution time: {execution_time:.2f} seconds, ending @ {pn.formatted_time_str()}{pn.C_END}")
         buffer.append(f"{pn.C_GREEN}---------------------------------------------------------------------------{pn.C_END}")   
         print("\n".join(buffer))
         return buffer, num_ended_bounties, num_started_bounties
@@ -859,7 +859,7 @@ def process_address(args, web3, bounty_contract, bounty_data, row, is_multi_thre
 
     end_time = time.time()
     execution_time = end_time - start_time
-    buffer.append(f"\n   {pn.C_CYAN}Execution time: {execution_time:.2f} seconds{pn.C_END}")
+    buffer.append(f"\n   {pn.C_CYAN}Execution time: {execution_time:.2f} seconds, ending @ {pn.formatted_time_str()}{pn.C_END}")
     buffer.append(f"{pn.C_GREEN}---------------------------------------------------------------------------{pn.C_END}")    
     print("\n".join(buffer))
     return buffer, num_ended_bounties, num_started_bounties
@@ -909,6 +909,7 @@ def main():
     print("loop limit: ", args.loop_limit)
     print("loop_buffer:", args.loop_buffer)
     print("wallets:", args.wallets)
+    print("Time:", pn.formatted_time_str())
 
     # Set the times left to loop to the loop limit, if the arg is specified
     # This just helps create a limit on how many times we can loop
@@ -1033,7 +1034,7 @@ def main():
                 print(f"   {key}: {len(value)}")
         print("")
 
-        # Clear these out once we print out the summary
+        # Clear these out once we print out the summary--
         _pending_bounties = {}
         _successfully_started_bounties = {}            
 

@@ -352,6 +352,54 @@ def make_pirate_query(address):
     }}
     """
 
+def fetch_game_item_data(address):
+    query = f"""
+    {{
+      accounts(where: {{address: "{address.lower()}"}}){{
+        address
+        gameItems(where: {{amount_gt:0}}){{
+            amount
+            gameItem{{
+                tokenId
+                name
+                worldEntity{{
+                    id
+                }}                
+            }}
+        }}
+      }}
+    }}
+    """
+    return get_data(query)
+
+
+def get_amount_by_item_token_id(data, target_token_id):
+    # Extract the 'gameItems' list from the JSON data
+    game_items = data.get('data', {}).get('accounts', [])[0].get('gameItems', [])
+
+    # Iterate through the game items to find the matching tokenId
+    for item in game_items:
+        if item.get('gameItem', {}).get('tokenId') == str(target_token_id):
+            return int(item.get('amount', 0))
+
+    # Return 0 if no match is found
+    return 0
+
+
+def get_amount_by_world_entity_id(data, world_entity_id):
+    try:
+        accounts = data['data']['accounts']
+        for account in accounts:
+            game_items = account['gameItems']
+            for game_item in game_items:
+                if game_item['gameItem']['worldEntity']['id'] == world_entity_id:
+                    return int(game_item['amount'])
+        # Return 0 if the worldEntity ID is not found
+        return 0
+    except KeyError:
+        # Handle the case where the data structure is not as expected
+        return 0
+    
 
 def fetch_quest_data():
     query = f"""
@@ -605,11 +653,13 @@ def select_xlsx_file():
         return f"{directory_path}/{selected_file}"
 
 
+def formatted_time_str(format="%m-%d %H:%M:%S"):
+    return datetime.datetime.now().strftime(format) 
+
+
 def handle_delay(delay, time_period="minute"):
     
     if delay is not None and delay > 0:
-        current_time = datetime.datetime.now()
-        formatted_time = current_time.strftime("%Y-%m-%d %H:%M:%S")
 
         if time_period == "hour":
             delay_seconds = delay * 3600
@@ -624,7 +674,7 @@ def handle_delay(delay, time_period="minute"):
         seconds = delay_seconds % 60
 
         # Build the delay message
-        delay_message = f"{formatted_time} - Delaying for"
+        delay_message = f"{formatted_time_str()} - Delaying for"
 
         # Add hours if it's greater than zero
         if hours > 0:
@@ -645,11 +695,16 @@ def handle_delay(delay, time_period="minute"):
             hours_remaining = remaining // 3600
             minutes_remaining = (remaining % 3600) // 60
             seconds_remaining = remaining % 60
-            sys.stdout.write(f"\rTime remaining: {hours_remaining} hours {minutes_remaining} minutes {seconds_remaining} seconds")
+            if hours_remaining > 0:
+                sys.stdout.write(f"\rTime remaining: {C_CYAN}{hours_remaining} hours {minutes_remaining} minutes {seconds_remaining} seconds {C_END}")
+            elif minutes_remaining > 0:
+                sys.stdout.write(f"\rTime remaining: {C_CYAN}{minutes_remaining} minutes {seconds_remaining} seconds {C_END}")
+            else:
+                sys.stdout.write(f"\rTime remaining: {C_CYAN}{seconds_remaining} seconds {C_END}")                                
             sys.stdout.flush()
             time.sleep(1)
 
-        print("\nDelay complete. Resuming execution.")
+        print(f"\nDelay complete. {C_CYAN}Resuming execution at {formatted_time_str()}{C_END}")
 
 
 def get_full_wallet_data(walletlist, csv_filename="full_data_for_addresses.csv"):

@@ -255,9 +255,9 @@ def handle_row(row, is_multi_threaded=True):
         buffer.append(f"    {quest_colors[chosen_quest['name']]}{chosen_quest['name']}{C_END}")
         txn_hash, status = start_quest(quest_contract, address, key, chosen_quest)
         if status == "Successful": 
-            buffer.append(f"        Transaction {status}: {C_GREEN}:{txn_hash.hex()}{C_END}")
+            buffer.append(f"        {pn.formatted_time_str()} Transaction {status}: {C_GREEN}:{txn_hash.hex()}{C_END}")
         else:
-            buffer.append(f"        Transaction {status}: {C_RED}:{txn_hash.hex()}{C_END}")
+            buffer.append(f"        {pn.formatted_time_str()} Transaction {status}: {C_RED}:{txn_hash.hex()}{C_END}")
             break # adding failsafe to break if a transaction fails
 
         initial_energy_balance -= quest_energy_cost
