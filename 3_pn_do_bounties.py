@@ -788,13 +788,17 @@ def process_address(args, web3, bounty_contract, bounty_data, row, is_multi_thre
     friendly_pirate_ids = [pirate_id.split('-')[1] for pirate_id in pirate_ids]
 
     # Now friendly_pirate_ids will contain the parts after the dash, e.g., ["456", "1011"]
-    buffer.append(f"\n   Wallet {wallet} has the following pirates: {', '.join(friendly_pirate_ids)}")
+    buffer.append(f"\n   Wallet {wallet} has the following pirates: {', '.join(friendly_pirate_ids)}\n")
 
     # do bounties to execute
     bounties_to_execute, fallback_bounty_pirates = get_bounties_to_execute(buffer, pirate_ids)
 
     # make a copy of the fall_back bounties to remove bounties out of it to prevent redundacy
-    _fallback_bounties_copy = list(_fallback_bounties)    
+    _fallback_bounties_copy = list(_fallback_bounties)  
+
+    buffer.append(f"{pn.C_MAGENTA}Excel Specified Bounties...{pn.C_END}\n")    
+    if len(bounties_to_execute.items()) == 0:
+        buffer.append("   None")
 
     # Now loop over bounties to execute and execute them
     for group_id, entity_ids in bounties_to_execute.items():   
@@ -809,7 +813,7 @@ def process_address(args, web3, bounty_contract, bounty_data, row, is_multi_thre
             has_pending_bounty = rate_limited_has_pending_bounty(bounty_contract, address, group_id)    
             
             if has_pending_bounty:
-                buffer.append(f"   {pn.C_YELLOW}'{bounty_name}' is still pending{pn.C_END}")
+                buffer.append(f"   {pn.C_YELLOW}{bounty_name} is still pending{pn.C_END}")
                 insert_address_into_dictionary(_pending_bounties,bounty_name,address) 
             else:
                 bounty_result = rate_limited_start_bounty(web3, bounty_contract, address, private_key, bounty_name, bounty_id, entity_ids, buffer)
@@ -827,11 +831,17 @@ def process_address(args, web3, bounty_contract, bounty_data, row, is_multi_thre
                 # Delay to allow the network to update the nonce
                 time.sleep(SLOW_FACTOR) 
 
+    buffer.append(f"\n{pn.C_MAGENTA}Fallback Bounty Pirates...{pn.C_END}\n")
+
     # Loop over fallback_bounty_pirates (list of entity_ids)
-    if len(_fallback_bounties) > 0:
-            
+    if len(_fallback_bounties) > 0 and len(fallback_bounty_pirates) > 0:
+
         for entity_id in fallback_bounty_pirates:
 
+            # create a temporary list to store bounties we want to remove from the list for future pirates to fallback
+            _fallback_bounties_to_remove = []
+            
+            # loop through fallback bounties to determine what to execute until you find one that works
             for fallback_bounty in _fallback_bounties_copy:
 
                 bounty_result = 0
@@ -844,8 +854,15 @@ def process_address(args, web3, bounty_contract, bounty_data, row, is_multi_thre
                 has_pending_bounty = rate_limited_has_pending_bounty(bounty_contract, address, group_id)      
                 
                 if has_pending_bounty:
-                    _fallback_bounties_copy.remove(fallback_bounty)
-                    buffer.append(f"   {pn.C_YELLOW}'{bounty_name}' is still pending{pn.C_END}")
+                    _fallback_bounties_to_remove.append(fallback_bounty)
+
+                    address_str, token_id = pn.entity_to_token(entity_id)
+                    buffer.append(f"   Sending {pn.C_CYAN}1 pirate(s) {pn.C_END} on {pn.C_CYAN}'{bounty_name}'{pn.C_END}")
+                    buffer.append(f"      -> entities: {entity_id}")
+                    buffer.append(f"      -> bounty id: {bounty_id}")
+                    buffer.append(f"      -> {address_str}, Token ID: {pn.C_CYAN}{token_id}{pn.C_END}")
+                    buffer.append(f"      -> {pn.C_YELLOW}'{bounty_name}' is still pending{pn.C_END}\n")
+
                     insert_address_into_dictionary(_pending_bounties,bounty_name,address) 
                 else:
                     bounty_result = rate_limited_start_bounty(web3, bounty_contract, address, private_key, bounty_name, bounty_id, entity_ids, buffer)
@@ -853,9 +870,16 @@ def process_address(args, web3, bounty_contract, bounty_data, row, is_multi_thre
                     time.sleep(SLOW_FACTOR) 
                 
                 # If the fallback bounty was a success then increment the number of started bounties and break the fallback loop for this enity
-                if bounty_result == 1: 
+                if bounty_result == 1:
+                    _fallback_bounties_to_remove.append(fallback_bounty) 
                     num_started_bounties += 1
                     break
+            
+            # remove any pending bounties from the fallback copy so that any future pirates won't need to try to start that bounty
+            for fallback_bounty in _fallback_bounties_to_remove:
+                _fallback_bounties_copy.remove(fallback_bounty)
+    else:
+        buffer.append("   None")
 
     end_time = time.time()
     execution_time = end_time - start_time
