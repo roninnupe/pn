@@ -585,7 +585,7 @@ def rate_limited_is_bounty_available(contract, address, bounty_id):
 
 
 @limits(calls=10, period=1)
-def rate_limited_start_bounty(web3, contract_to_write, address, private_key, bounty_name, bounty_id, pirates, buffer):
+def rate_limited_start_bounty(web3, contract_to_write, address, private_key, bounty_name, bounty_id, pirates, buffer, verbose=False):
     """
     Starts a bounty with rate limiting.
 
@@ -608,14 +608,38 @@ def rate_limited_start_bounty(web3, contract_to_write, address, private_key, bou
     1
     """
 
-    buffer.append(f"   Sending {pn.C_CYAN}{len(pirates)} pirate(s){pn.C_END} on {pn.C_CYAN}'{bounty_name}'{pn.C_END}")
-    buffer.append(f"      -> entities: {pirates}")
-    buffer.append(f"      -> bounty id: {bounty_id}")
+    if len(pirates) > 1:
+        buffer.append(f"   Sending {pn.C_CYAN}{len(pirates)} pirate(s){pn.C_END} on {pn.C_CYAN}'{bounty_name}'{pn.C_END}")
+        buffer.append(f"      -> entities: {pirates}")
+        buffer.append(f"      -> bounty id: {bounty_id}")
 
-    # Print out the pirates' addresses and token IDs
-    for pirate in pirates:
-        address_str, token_id = pn.entity_to_token(pirate)
-        buffer.append(f"      -> {address_str}, Token ID: {pn.C_CYAN}{token_id}{pn.C_END}")
+        # Print out the pirates' addresses and token IDs
+        for pirate in pirates:
+            address_str, token_id = pn.entity_to_token(pirate)
+            buffer.append(f"      -> {address_str}, Token ID: {pn.C_CYAN}{token_id}{pn.C_END}")
+    else:
+        for pirate in pirates:
+            address_str, token_id = pn.entity_to_token(pirate)
+            break
+
+        if verbose:
+            buffer.append(f"   Sending Pirate # {pn.C_CYAN}{token_id}{pn.C_END} {pirates} on {pn.C_CYAN}'{bounty_name}'{pn.C_END} - {bounty_id}")
+        else:
+            buffer.append(f"   Sending Pirate # {pn.C_CYAN}{token_id}{pn.C_END} on {pn.C_CYAN}'{bounty_name}'{pn.C_END}")
+
+    status_msg, txn_receipt = start_bounty(web3, contract_to_write, address, private_key, bounty_id, pirates)
+
+    if(txn_receipt is not None and status_msg == pn.WEB3_STATUS_SUCCESS):
+        insert_address_into_dictionary(_successfully_started_bounties, bounty_name, address)
+        buffer.append(f'      -> {pn.C_GREEN}startBounty {status_msg}{pn.C_END}: {txn_receipt.transactionHash.hex()}\n')
+        return 1
+    
+    else:
+        buffer.append(f"      -> {pn.C_RED}**Error startBounty{pn.C_END}: {status_msg}\n")
+        return 0
+
+
+def start_bounty(web3, contract_to_write, address, private_key, bounty_id, pirates):
 
     txn_dict = {
         'from': address,
@@ -629,14 +653,11 @@ def rate_limited_start_bounty(web3, contract_to_write, address, private_key, bou
     try:
         txn_receipt = pn.send_web3_transaction(web3, private_key, txn_dict)
         status_message = pn.get_status_message(txn_receipt)
-        buffer.append(f'      -> {pn.C_GREEN}startBounty {status_message}{pn.C_END}: {txn_receipt.transactionHash.hex()}\n')
-        insert_address_into_dictionary(_successfully_started_bounties, bounty_name, address)
-        return 1
+        return status_message, txn_receipt
     except Exception as e:
         error_type = type(e).__name__
-        buffer.append(f"      -> {pn.C_RED}**Error startBounty{pn.C_END}: {e} - {error_type}\n")
-        return 0
-
+        return f"{e} - {error_type}", None 
+    
 
 # Custom exception class for status message "failed"
 class BountyFailedError(Exception):
@@ -813,7 +834,7 @@ def process_address(args, web3, bounty_contract, bounty_data, row, is_multi_thre
             has_pending_bounty = rate_limited_has_pending_bounty(bounty_contract, address, group_id)    
             
             if has_pending_bounty:
-                buffer.append(f"   {pn.C_YELLOW}{bounty_name} is still pending{pn.C_END}")
+                buffer.append(f"   {pn.C_YELLOW}{bounty_name} is still pending{pn.C_END}\n")
                 insert_address_into_dictionary(_pending_bounties,bounty_name,address) 
             else:
                 bounty_result = rate_limited_start_bounty(web3, bounty_contract, address, private_key, bounty_name, bounty_id, entity_ids, buffer)
@@ -857,10 +878,8 @@ def process_address(args, web3, bounty_contract, bounty_data, row, is_multi_thre
                     _fallback_bounties_to_remove.append(fallback_bounty)
 
                     address_str, token_id = pn.entity_to_token(entity_id)
-                    buffer.append(f"   Sending {pn.C_CYAN}1 pirate(s) {pn.C_END}on {pn.C_CYAN}'{bounty_name}'{pn.C_END}")
-                    buffer.append(f"      -> entities: {entity_id}")
-                    buffer.append(f"      -> bounty id: {bounty_id}")
-                    buffer.append(f"      -> {address_str}, Token ID: {pn.C_CYAN}{token_id}{pn.C_END}")
+
+                    buffer.append(f"   Sending Pirate # {pn.C_CYAN}{token_id}{pn.C_END} on {pn.C_CYAN}'{bounty_name}'{pn.C_END}")                    
                     buffer.append(f"      -> {pn.C_YELLOW}'{bounty_name}' is still pending{pn.C_END}\n")
 
                     insert_address_into_dictionary(_pending_bounties,bounty_name,address) 

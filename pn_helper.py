@@ -461,16 +461,19 @@ def send_web3_transaction(web3, private_key, txn_dict):
     return txn_receipt
 
 
+WEB3_STATUS_PENDING = "Pending"
+WEB3_STATUS_SUCCESS = "Successful"
+WEB3_STATUS_FAILURE = "Failed"
 
 # Convert a transaction reciept into it's display friendly message
 def get_status_message(txn_reciept):
     if txn_reciept is None:
-        return "Pending"  # Transaction is still pending
+        return WEB3_STATUS_PENDING  # Transaction is still pending
 
     if txn_reciept["status"] == 1:
-        return "Successful"  # Transaction was successful
+        return WEB3_STATUS_SUCCESS  # Transaction was successful
     else:
-        return "Failed"  # Transaction failed    
+        return WEB3_STATUS_FAILURE  # Transaction failed    
 
 
 def send_nova_eth(sender, recipient, amount_in_eth, private_key, gas_limit=30000, subtract_gas=False):
