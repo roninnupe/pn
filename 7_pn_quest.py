@@ -224,7 +224,7 @@ def start_quest(contract, address, key, quest):
         txn_hash = web3.eth.send_raw_transaction(signed_txn.rawTransaction)
         txn_reciept = web3.eth.wait_for_transaction_receipt(txn_hash)
 
-        return txn_hash, pn.get_status_message(txn_reciept)        
+        return txn_hash.hex(), pn.get_status_message(txn_reciept)        
     except Exception as e:
         
         # Print the error type and traceback
@@ -232,7 +232,7 @@ def start_quest(contract, address, key, quest):
         traceback.print_exc()  # This prints the traceback
         print(f"Error with transaction: {e}")
     
-    return None, "Failed to execute transaction"
+    return None, "failed due to error"
     
 
 def handle_row(row, is_multi_threaded=True):
@@ -253,11 +253,11 @@ def handle_row(row, is_multi_threaded=True):
             continue
 
         buffer.append(f"    {quest_colors[chosen_quest['name']]}{chosen_quest['name']}{C_END}")
-        txn_hash, status = start_quest(quest_contract, address, key, chosen_quest)
+        txn_hash_hex, status = start_quest(quest_contract, address, key, chosen_quest)
         if status == "Successful": 
-            buffer.append(f"        {pn.formatted_time_str()} Transaction {status}: {C_GREEN}:{txn_hash.hex()}{C_END}")
+            buffer.append(f"        {pn.formatted_time_str()} Transaction {status}: {C_GREEN}{txn_hash_hex}{C_END}")
         else:
-            buffer.append(f"        {pn.formatted_time_str()} Transaction {status}: {C_RED}:{txn_hash.hex()}{C_END}")
+            buffer.append(f"        {pn.formatted_time_str()} Transaction {status}: {C_RED}{txn_hash_hex}{C_END}")
             break # adding failsafe to break if a transaction fails
 
         initial_energy_balance -= quest_energy_cost
