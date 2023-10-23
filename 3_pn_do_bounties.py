@@ -1,7 +1,8 @@
 import argparse
-import requests
 import math
 import time
+import functools
+import traceback
 import questionary
 import pandas as pd
 import pn_helper as pn
@@ -922,6 +923,164 @@ def process_address(args, web3, bounty_contract, bounty_data, row, is_multi_thre
     return buffer, num_ended_bounties, num_started_bounties
 
 
+def retry(max_retries=3, delay_seconds=300):
+    def decorator_retry(func):
+        @functools.wraps(func)
+        def wrapper_retry(*args, **kwargs):
+            for _ in range(max_retries + 1):
+                try:
+                    result = func(*args, **kwargs)
+                    return result  # If successful, return the result
+                except Exception as e:
+                    error_type = type(e).__name__
+                    print(f"Error Type: {error_type}")
+                    print(f"Error Message: {str(e)}")
+                    traceback.print_exc()  # Print the traceback
+                    if _ < max_retries:
+                        print(f"Retrying in {delay_seconds} seconds...")
+                        time.sleep(delay_seconds)
+                    else:
+                        print("Maximum retry attempts reached. Exiting...")
+                        raise e  # Re-raise the exception after max retries
+
+        return wrapper_retry
+
+    return decorator_retry
+
+
+@retry(max_retries=12, delay_seconds=300)
+def body_logic(args, df_addressses):
+
+    global _pending_bounties
+    global _successfully_started_bounties    
+
+    # Set the times left to loop to the loop limit, if the arg is specified
+    # This just helps create a limit on how many times we can loop
+    times_left_to_loop = 0
+    if args.loop_limit: times_left_to_loop = args.loop_limit
+
+    if args.start:
+        if args.fallback_group_ids:
+            fallback_group_ids = args.fallback_group_ids.split(',')
+            for args_group_id in fallback_group_ids:
+                fb_group_id = args_group_id.strip()
+                fb_bounty_name = get_bounty_name_by_group_id(group_id)
+
+                if fb_bounty_name is not None:
+                    _fallback_bounties.append((fb_group_id, fb_bounty_name))
+
+        else:
+            fallback_count = 1
+            # Keep iterating creating a list of fallback bounties until the user select none
+            while True:
+                fb_group_id, fb_bounty_name = input_choose_bounty(f"Please choose fallback bounty #{fallback_count}")
+                if fb_group_id == "0":
+                    break
+                _fallback_bounties.append((fb_group_id, fb_bounty_name))
+                fallback_count += 1
+
+            print("Fallback Bounties:")
+            for i, (group_id, bounty_name) in enumerate(_fallback_bounties, start=1):
+                print(f"{pn.C_CYAN}Fallback Bounty #{i}:{pn.C_END}")
+                print(f"Group ID: {group_id}")
+                print(f"Bounty Name: {bounty_name}\n")
+
+    # put in an initial starting delay
+    if args.delay_start:
+        pn.handle_delay(args.delay_start)
+
+    #pre initialize for thread safety
+    _pirate_bounty_mappings.get_mappings_df()
+
+    while True:
+        start_time = time.time()
+
+        # Initialize web3 with the PN
+        web3 = pn.Web3Singleton.get_web3_Nova()
+        bounty_contract = pn.Web3Singleton.get_BountySystem()
+
+        ended_bounties = 0
+        started_bounties = 0
+
+        # Load the JSON data from the file
+        bounty_data = pn.get_data(bounty_query)
+
+        # reload the pirate bounty mappings, because this could change between loop iterations and we want to reflect changes
+        _pirate_bounty_mappings.reload_data()
+
+        # CODE if we are going to run bounties multithreaded 
+        if args.max_threads > 1 :
+            print("Initiating Multithreading")
+
+            with ThreadPoolExecutor(max_workers=args.max_threads) as executor:
+                # Submit jobs to the executor
+                futures = [executor.submit(process_address, args, web3, bounty_contract, bounty_data, row, True) 
+                    for index, row in df_addressses.iterrows()]
+
+                # Collect results as they come in
+                for future in futures:
+                    buffer, num_ended_bounties, num_started_bounties = future.result()
+                    ended_bounties += num_ended_bounties
+                    started_bounties += num_started_bounties
+
+        # if we are going to go in order sequentially
+        else:
+            for index, row in df_addressses.iterrows():
+                buffer, num_ended_bounties, num_started_bounties = process_address(args, web3, bounty_contract, bounty_data, row, False)
+                ended_bounties += num_ended_bounties
+                started_bounties += num_started_bounties
+
+        end_time = time.time()
+        execution_time = end_time - start_time    
+        number_of_wallets = len(df_addressses)
+        average_execution_time = execution_time / number_of_wallets 
+
+        print(f"\nclaimed {ended_bounties} bounties and started {started_bounties} bounties in {execution_time:.2f} seconds (avg of {average_execution_time:.2f} s for {number_of_wallets} wallet(s))")        
+        
+        # Now we try to print out the pending bounties and the started bounty summary
+        print(f"\n{pn.C_YELLOW}Pending Bounties:{pn.C_END}")
+        if not _pending_bounties:
+            print("   None")
+        else:
+            for key, value in _pending_bounties.items():
+                print(f"   {key}: {len(value)}")
+
+        print(f"\n{pn.C_GREEN}Successfully Started Bounties:{pn.C_END}")
+        if not _successfully_started_bounties:
+            print("   None")
+        else:
+            for key, value in _successfully_started_bounties.items():
+                print(f"   {key}: {len(value)}")
+        print("")
+
+        # Clear these out once we print out the summary--
+        _pending_bounties = {}
+        _successfully_started_bounties = {}            
+
+        # end the loop if we don't have looping speified
+        if args.delay_loop == 0:
+            break
+        else:
+            # Calculate the seconds_to_shave_off: use the actual execution time minus a 120 second buffer to give some breathing room
+            # Example if the exeution time takes 4 minute, we will take (360-120) = 240 seconds and shave it off the delay_loop 
+            # The purpose of this is to try to make functions land more precisely closer to when they wrap up 
+            seconds_to_shave_off = math.floor(execution_time - args.loop_buffer)
+            print(f"We are trying to otimize by shaving off {seconds_to_shave_off} seconds")
+
+            # Check if time_adjustment is negative and set it to 0 if it is
+            if seconds_to_shave_off < 0:
+                seconds_to_shave_off = 0  
+
+            # continue looping with necessary delay
+            delay_in_seconds = (args.delay_loop * 60) - seconds_to_shave_off 
+            pn.handle_delay(delay_in_seconds, time_period="second")
+
+        if args.loop_limit:
+            times_left_to_loop -= 1
+            print(f"We have {times_left_to_loop} times left to loop")
+            if times_left_to_loop < 1: break
+
+
 def parse_arguments():
     parser = argparse.ArgumentParser(description="This is a script to automate bounties")
 
@@ -968,10 +1127,6 @@ def main():
     print("wallets:", args.wallets)
     print("Time:", pn.formatted_time_str())
 
-    # Set the times left to loop to the loop limit, if the arg is specified
-    # This just helps create a limit on how many times we can loop
-    if args.loop_limit: times_left_to_loop = args.loop_limit
-
     # Load data from csv file
     if args.wallets: 
 
@@ -992,132 +1147,10 @@ def main():
     # Call the function with the user's input
     df_addressses = pn.get_full_wallet_data(walletlist)
 
-    if args.start:
-
-        if args.fallback_group_ids:
-
-            fallback_group_ids = args.fallback_group_ids.split(',')
-            for args_group_id in fallback_group_ids:
-                fb_group_id = args_group_id.strip()
-                fb_bounty_name = get_bounty_name_by_group_id(group_id)
-
-                if fb_bounty_name is not None:
-                    _fallback_bounties.append((fb_group_id, fb_bounty_name))
-
-        else:
-            fallback_count = 1
-            # Keep iterating creating a list of fallback bounties until the user select none
-            while True:
-                fb_group_id, fb_bounty_name = input_choose_bounty(f"Please choose fallback bounty #{fallback_count}")
-                if fb_group_id == "0":
-                    break
-                _fallback_bounties.append((fb_group_id, fb_bounty_name))
-                fallback_count += 1
-
-            print("Fallback Bounties:")
-            for i, (group_id, bounty_name) in enumerate(_fallback_bounties, start=1):
-                print(f"{pn.C_CYAN}Fallback Bounty #{i}:{pn.C_END}")
-                print(f"Group ID: {group_id}")
-                print(f"Bounty Name: {bounty_name}\n")
-
-    # put in an initial starting delay
-    if args.delay_start:
-        pn.handle_delay(args.delay_start)
-
-    #pre initialize for thread safety
-    _pirate_bounty_mappings.get_mappings_df()
-
-    while True:
-
-        start_time = time.time()
-
-        # Initialize web3 with the PN
-        web3 = pn.Web3Singleton.get_web3_Nova()
-        bounty_contract = pn.Web3Singleton.get_BountySystem()
-
-        ended_bounties = 0
-        started_bounties = 0
-
-        # Load the JSON data from the file
-        bounty_data = pn.get_data(bounty_query)
-
-        # reload the pirate bounty mappings, because this could change between loop iterations and we want to reflect changes
-        _pirate_bounty_mappings.reload_data()
-
-        # CODE if we are going to run bounties multithreaded 
-        if args.max_threads > 1 :
-
-            print("Initiating Multithreading")
-
-            with ThreadPoolExecutor(max_workers=args.max_threads) as executor:
-                # Submit jobs to the executor
-                futures = [executor.submit(process_address, args, web3, bounty_contract, bounty_data, row, True) 
-                    for index, row in df_addressses.iterrows()]
-
-                # Collect results as they come in
-                for future in futures:
-                    buffer, num_ended_bounties, num_started_bounties = future.result()
-                    ended_bounties += num_ended_bounties
-                    started_bounties += num_started_bounties
-
-        # if we are going to go in order sequentially
-        else:
-
-            for index, row in df_addressses.iterrows():
-                buffer, num_ended_bounties, num_started_bounties = process_address(args, web3, bounty_contract, bounty_data, row, False)
-                ended_bounties += num_ended_bounties
-                started_bounties += num_started_bounties
-
-        end_time = time.time()
-        execution_time = end_time - start_time    
-        number_of_wallets = len(df_addressses)
-        average_execution_time = execution_time / number_of_wallets 
-
-        print(f"\nclaimed {ended_bounties} bounties and started {started_bounties} bounties in {execution_time:.2f} seconds (avg of {average_execution_time:.2f} s for {number_of_wallets} wallet(s))")        
-        
-        # Now we try to print out the pending bounties and the started bounty summary
-        print(f"\n{pn.C_YELLOW}Pending Bounties:{pn.C_END}")
-        if not _pending_bounties:
-            print("   None")
-        else:
-            for key, value in _pending_bounties.items():
-                print(f"   {key}: {len(value)}")
-
-        print(f"\n{pn.C_GREEN}Successfully Started Bounties:{pn.C_END}")
-        if not _successfully_started_bounties:
-            print("   None")
-        else:
-            for key, value in _successfully_started_bounties.items():
-                print(f"   {key}: {len(value)}")
-        print("")
-
-        # Clear these out once we print out the summary--
-        _pending_bounties = {}
-        _successfully_started_bounties = {}            
-
-        # end the loop if we don't have looping speified
-        if args.delay_loop == 0:
-            break
-        else:
-
-            # Calculate the seconds_to_shave_off: use the actual execution time minus a 120 second buffer to give some breathing room
-            # Example if the exeution time takes 4 minute, we will take (360-120) = 240 seconds and shave it off the delay_loop 
-            # The purpose of this is to try to make functions land more precisely closer to when they wrap up 
-            seconds_to_shave_off = math.floor(execution_time - args.loop_buffer)
-            print(f"We are trying to otimize by shaving off {seconds_to_shave_off} seconds")
-
-            # Check if time_adjustment is negative and set it to 0 if it is
-            if seconds_to_shave_off < 0:
-                seconds_to_shave_off = 0  
-
-            # continue looping with necessary delay
-            delay_in_seconds = (args.delay_loop * 60) - seconds_to_shave_off 
-            pn.handle_delay(delay_in_seconds, time_period="second")
-
-        if args.loop_limit:
-            times_left_to_loop -= 1
-            print(f"We have {times_left_to_loop} times left to loop")
-            if times_left_to_loop < 1: break
+    try:
+        body_logic(args, df_addressses)
+    except Exception as e:
+        print(f"Final exception: {e}")        
 
 
 if __name__ == "__main__":
