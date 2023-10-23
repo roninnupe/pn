@@ -438,7 +438,7 @@ class GasLimitExceededError(Exception):
         super().__init__(self.message)
 
 # Define your GAS_LIMIT constant
-GAS_LIMIT = 1610555 
+GAS_LIMIT = 1690555 
 
 # Sends a web3 transaction and returns its transaction receipt
 def send_web3_transaction(web3, private_key, txn_dict):
@@ -747,3 +747,28 @@ def parse_number_ranges(range_str):
             result.extend(range(start, end + 1))
     
     return result
+
+def insert_address_into_dictionary(dictionary, key, address):
+    """
+    Insert an address into a dictionary of lists associated with keys, ensuring uniqueness.
+
+    Parameters:
+        dictionary (dict): The dictionary to insert the address into.
+        key (hashable): The key to associate with the address in the dictionary.
+        address: The address to insert into the list associated with the key.
+
+    Explanation:
+        This function is used to maintain a dictionary where each key is associated with a list of addresses.
+        It ensures that addresses are unique within each list.
+
+        - If the key is not already in the dictionary, a new key is created with a list containing the address.
+        - If the key is already in the dictionary, the function checks if the address is already in the list.
+          - If the address is not in the list, it's appended to the list.
+          - If the address is already in the list, it won't be added again to maintain uniqueness.
+    """
+    if key not in dictionary:
+        # If the key is not in the dictionary, create a new key with a list containing the address.
+        dictionary[key] = [address]
+    elif address not in dictionary[key]:
+        # If the key is in the dictionary and the address is not in the list, append the address to the list.
+        dictionary[key].append(address)
