@@ -262,32 +262,6 @@ def body_logic(args, df_addressses):
     times_left_to_loop = 0
     if args.loop_limit: times_left_to_loop = args.loop_limit
 
-    if args.start:
-        if args.fallback_group_ids:
-            fallback_group_ids = args.fallback_group_ids.split(',')
-            for args_group_id in fallback_group_ids:
-                fb_group_id = args_group_id.strip()
-                fb_bounty_name = PNB.get_bounty_name_by_group_id(group_id)
-
-                if fb_bounty_name is not None:
-                    _fallback_bounties.append((fb_group_id, fb_bounty_name))
-
-        else:
-            fallback_count = 1
-            # Keep iterating creating a list of fallback bounties until the user select none
-            while True:
-                fb_group_id, fb_bounty_name = input_choose_bounty(f"Please choose fallback bounty #{fallback_count}")
-                if fb_group_id == "0":
-                    break
-                _fallback_bounties.append((fb_group_id, fb_bounty_name))
-                fallback_count += 1
-
-            print("Fallback Bounties:")
-            for i, (group_id, bounty_name) in enumerate(_fallback_bounties, start=1):
-                print(f"{pn.C_CYAN}Fallback Bounty #{i}:{pn.C_END}")
-                print(f"Group ID: {group_id}")
-                print(f"Bounty Name: {bounty_name}\n")
-
     # put in an initial starting delay
     if args.delay_start:
         pn.handle_delay(args.delay_start)
@@ -413,6 +387,8 @@ def parse_arguments():
 
 
 def main():
+
+    global _fallback_bounties
     
     # Pull arguments out for start, end, and delay
     args = parse_arguments()
@@ -446,6 +422,35 @@ def main():
 
     # Call the function with the user's input
     df_addressses = pn.get_full_wallet_data(walletlist)
+
+    if args.start:
+
+        if args.fallback_group_ids:
+
+            fallback_group_ids = args.fallback_group_ids.split(',')
+            for args_group_id in fallback_group_ids:
+                fb_group_id = args_group_id.strip()
+                fb_bounty_name = PNB.get_bounty_name_by_group_id(group_id)
+
+                if fb_bounty_name is not None:
+                    _fallback_bounties.append((fb_group_id, fb_bounty_name))
+
+        else:
+
+            fallback_count = 1
+            # Keep iterating creating a list of fallback bounties until the user select none
+            while True:
+                fb_group_id, fb_bounty_name = input_choose_bounty(f"Please choose fallback bounty #{fallback_count}")
+                if fb_group_id == "0":
+                    break
+                _fallback_bounties.append((fb_group_id, fb_bounty_name))
+                fallback_count += 1
+
+            print("Fallback Bounties:")
+            for i, (group_id, bounty_name) in enumerate(_fallback_bounties, start=1):
+                print(f"{pn.C_CYAN}Fallback Bounty #{i}:{pn.C_END}")
+                print(f"Group ID: {group_id}")
+                print(f"Bounty Name: {bounty_name}\n")
 
     try:
         body_logic(args, df_addressses)
