@@ -4,16 +4,13 @@ import time
 import functools
 import traceback
 import questionary
-import pandas as pd
 import pn_helper as pn
 import pn_bounty as PNB
-from eth_utils import to_checksum_address
 from concurrent.futures import ThreadPoolExecutor
 
 MAX_THREADS = 2
-MAX_PIRATE_ON_BOUNTY = 20
 SLOW_FACTOR = 0.5  
-
+   
 _pending_bounties = {}
 _successfully_started_bounties = {}
 _fallback_bounties = []
