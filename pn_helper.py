@@ -694,20 +694,25 @@ def handle_delay(delay, time_period="minute"):
         # Print the delay message
         print(delay_message)
 
-        for remaining in range(delay_seconds, 0, -1):
-            hours_remaining = remaining // 3600
-            minutes_remaining = (remaining % 3600) // 60
-            seconds_remaining = remaining % 60
-            if hours_remaining > 0:
-                sys.stdout.write(f"\rTime remaining: {C_CYAN}{hours_remaining} hours {minutes_remaining} minutes {seconds_remaining} seconds {C_END}")
-            elif minutes_remaining > 0:
-                sys.stdout.write(f"\rTime remaining: {C_CYAN}{minutes_remaining} minutes {seconds_remaining} seconds {C_END}")
-            else:
-                sys.stdout.write(f"\rTime remaining: {C_CYAN}{seconds_remaining} seconds {C_END}")                                
-            sys.stdout.flush()
-            time.sleep(1)
+        visual_delay_for(delay_seconds)
 
         print(f"\nDelay complete. {C_CYAN}Resuming execution at {formatted_time_str()}{C_END}")
+
+
+def visual_delay_for(delay_seconds, prefix="Time remaining: "):
+    for remaining in range(delay_seconds, 0, -1):
+        hours_remaining = remaining // 3600
+        minutes_remaining = (remaining % 3600) // 60
+        seconds_remaining = remaining % 60
+        if hours_remaining > 0:
+            sys.stdout.write(f"\r{prefix}{C_CYAN}{hours_remaining} hours {minutes_remaining} minutes {seconds_remaining} seconds {C_END}")
+        elif minutes_remaining > 0:
+            sys.stdout.write(f"\r{prefix}{C_CYAN}{minutes_remaining} minutes {seconds_remaining} seconds {C_END}")
+        else:
+            sys.stdout.write(f"\r{prefix}{C_CYAN}{seconds_remaining} seconds {C_END}")                                
+        sys.stdout.flush()
+        time.sleep(1)
+
 
 
 def get_full_wallet_data(walletlist, csv_filename="full_data_for_addresses.csv"):

@@ -240,8 +240,7 @@ def retry(max_retries=3, delay_seconds=300):
                     print(f"Error Message: {str(e)}")
                     traceback.print_exc()  # Print the traceback
                     if _ < max_retries:
-                        print(f"Retrying in {delay_seconds} seconds...")
-                        time.sleep(delay_seconds)
+                        pn.visual_delay_for(delay_seconds, prefix="Retrying in ")
                     else:
                         print("Maximum retry attempts reached. Exiting...")
                         raise e  # Re-raise the exception after max retries
