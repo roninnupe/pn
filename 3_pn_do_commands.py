@@ -208,6 +208,7 @@ def process_address(args, web3, bounty_contract, bounty_data, row, is_multi_thre
                 # If the fallback bounty was a success then increment the number of started bounties and break the fallback loop for this enity
                 if bounty_result == 1:
                     _fallback_bounties_to_remove.append(fallback_bounty) 
+                    pn.insert_address_into_dictionary(_successfully_started_bounties, bounty_name, address)
                     num_started_bounties += 1
                     break
             
