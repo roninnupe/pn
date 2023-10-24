@@ -1,17 +1,12 @@
 import argparse
 import time
-import pandas as pd
 import pn_helper as pn
 import pn_quest as PNQ
-from web3 import Web3, HTTPProvider
-from eth_utils import to_checksum_address
-from termcolor import colored
 import questionary
 from questionary import Choice
 from pygments.token import Token
 from prompt_toolkit.styles import Style
 from termcolor import colored
-from itertools import cycle
 from concurrent.futures import ThreadPoolExecutor
 
 # Number of threads to use

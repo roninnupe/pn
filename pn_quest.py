@@ -2,8 +2,6 @@ import pn_helper as pn
 import traceback
 from web3 import Web3, HTTPProvider
 
-
-
 web3 = pn.Web3Singleton.get_web3_Nova()
 quest_contract = pn.Web3Singleton.get_QuestSystem()
 
@@ -62,7 +60,6 @@ def start_quest(address, private_key, pirate_id, quest_data):
             ) 
             for quest_input in quest_inputs_list
         ]
-        #quest_inputs_list  # List of input tuples - this is old code that only supports pirate, not starter pirates
     )
 
     # 7. Create and attempt transaction
