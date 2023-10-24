@@ -1,7 +1,6 @@
 import time
 import pandas as pd
 import pn_helper as pn
-from eth_utils import to_checksum_address
 from ratelimit import limits, sleep_and_retry
 
 MAX_PIRATE_ON_BOUNTY = 20
@@ -219,31 +218,6 @@ def get_bounty_limit_by_group_id(group_id):
         return MAX_PIRATE_ON_BOUNTY
 
 
-class PirateBountyMappings:
-    _instance = None
-
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(PirateBountyMappings, cls).__new__(cls)
-            cls._instance.__initialized = False
-        return cls._instance
-
-    def initialize(self):
-        if not self.__initialized:
-            self.__initialized = True
-            self.reload_data()  # Initialize by loading data from the Excel file
-
-    def reload_data(self):
-        # Load data from pn_pirates.xlsx (Excel file)
-        self.df = pd.read_excel(pn.data_path("inventory/pirates_bounty.xlsx"), engine='openpyxl')
-
-    def get_mappings_df(self):
-        self.initialize()
-        return self.df
-
-_pirate_bounty_mappings = PirateBountyMappings()
-
-
 def get_bounty_name_for_token_id(token_id, generation):
     """
     Get the bounty name associated with a specific Pirate NFT token ID and generation.
@@ -266,7 +240,7 @@ def get_bounty_name_for_token_id(token_id, generation):
     'Ore Galore'
     """
 
-    pirate_bounty_df = _pirate_bounty_mappings.get_mappings_df()
+    pirate_bounty_df = pn._pirate_command_mappings.get_mappings_df()
 
     matching_row = pirate_bounty_df[(pirate_bounty_df['tokenId'] == token_id) & (pirate_bounty_df['Gen'] == generation)]
     

@@ -6,6 +6,7 @@ import traceback
 import questionary
 import pn_helper as pn
 import pn_bounty as PNB
+import pn_quest as PNQ
 from concurrent.futures import ThreadPoolExecutor
 
 MAX_THREADS = 2
@@ -263,7 +264,7 @@ def body_logic(args, df_addressses):
         pn.handle_delay(args.delay_start)
 
     #pre initialize for thread safety
-    PNB._pirate_bounty_mappings.get_mappings_df()
+    pn._pirate_command_mappings.get_mappings_df()
 
     while True:
         start_time = time.time()
@@ -279,7 +280,7 @@ def body_logic(args, df_addressses):
         bounty_data = pn.get_data(PNB.bounty_query)
 
         # reload the pirate bounty mappings, because this could change between loop iterations and we want to reflect changes
-        PNB._pirate_bounty_mappings.reload_data()
+        pn._pirate_command_mappings.reload_data()
 
         # CODE if we are going to run bounties multithreaded 
         if args.max_threads > 1 :

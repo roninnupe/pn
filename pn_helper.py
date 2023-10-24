@@ -777,3 +777,62 @@ def insert_address_into_dictionary(dictionary, key, address):
     elif address not in dictionary[key]:
         # If the key is in the dictionary and the address is not in the list, append the address to the list.
         dictionary[key].append(address)
+
+
+class PirateCommandMappings:
+    """
+    A Singleton class for managing mappings between pirates and their associated commands.
+
+    Explanation:
+        Ensures a single instance for consistent access to pirate command mappings.
+        Loads and stores mappings in a DataFrame for easy retrieval.
+
+    Methods:
+        __new__(cls): Singleton pattern for one instance.
+
+        initialize(self): Load mappings from Excel if not initialized.
+
+        reload_data(self): Load data from an Excel file into a DataFrame. Handles file not found gracefully.
+
+        get_mappings_df(self): Retrieve pirate command mappings DataFrame.
+
+    Attributes:
+        df (pandas.DataFrame): DataFrame containing command mappings.
+
+    Usage:
+        Create an instance to access mappings via 'get_mappings_df'.
+    """
+
+    _instance = None
+
+    def __new__(cls):
+        """Singleton pattern for one instance."""
+        if cls._instance is None:
+            cls._instance = super(PirateCommandMappings, cls).__new__(cls)
+            cls._instance.__initialized = False
+        return cls._instance
+
+    def initialize(self):
+        """Load mappings from Excel if not initialized."""
+        if not self.__initialized:
+            self.__initialized = True
+            self.reload_data()
+
+    def reload_data(self):
+        """Load data from an Excel file into a DataFrame. Handles file not found gracefully."""
+        try:
+            file_path = data_path("inventory/pirate_command.xlsx")
+            self.df = pd.read_excel(file_path, engine='openpyxl')
+        except FileNotFoundError:
+            print(f"Warning: Pirate command mapping file '{file_path}' not found. Initialize it first.")
+            self.df = pd.DataFrame()  # Create an empty DataFrame if the file doesn't exist.
+
+    def get_mappings_df(self):
+        """Retrieve pirate command mappings DataFrame."""
+        self.initialize()
+        return self.df
+
+# Creating a single instance of the PirateCommandMappings class, named '_pirate_command_mappings'.
+# Follows the Singleton pattern, ensuring one instance program-wide for central access to mappings.
+# Provides easy access to mappings from different parts of the program.
+_pirate_command_mappings = PirateCommandMappings()
