@@ -29,6 +29,19 @@ C_CYAN = "\033[96m"
 C_END = '\033[0m'  # Reset to the default color
 C_YELLOWLIGHT = "\033[33m"
 
+# Color Constants for CLI
+COLOR = {
+    'RED':"\033[91m",
+    'GREEN':"\033[92m",
+    'YELLOW': "\033[93m",
+    'BLUE':"\033[94m",
+    'MAGENTA': "\033[95m",
+    'EXTRA': "\033[97m",
+    'CYAN': "\033[96m",
+    'YELLOWLIGHT': "\033[33m",
+    'END': '\033[0m'
+}
+
 ######################################################
 # WEB 3 END POINTS & Other API references
 ######################################################

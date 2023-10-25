@@ -5,6 +5,76 @@ from web3 import Web3, HTTPProvider
 web3 = pn.Web3Singleton.get_web3_Nova()
 quest_contract = pn.Web3Singleton.get_QuestSystem()
 
+
+class QuestCommand:
+    def __init__(self, quest_name=None, quest_id=None, pirate_entity_id=None,
+                 times_to_execute=None, energy_threshold=None, quest_data=None):
+        """
+        Create a QuestCommand instance.
+
+        Parameters:
+            quest_name (str): The name of the quest.
+            quest_id (int): The ID of the quest.
+            pirate_entity_id (int): The entity ID of the pirate executing the quest.
+            times_to_execute (int): The number of times to attempt the quest.
+            energy_threshold (float): The energy threshold required to execute the quest.
+            quest_data (pandas.DataFrame): The DataFrame to store quest execution data.
+        """
+        self.quest_name = quest_name
+        self.quest_id = quest_id
+        self.pirate_entity_id = pirate_entity_id
+        self.times_to_execute = times_to_execute
+        self.energy_threshold = energy_threshold
+        self.quest_data = quest_data
+
+    @classmethod
+    def empty(cls):
+        """Create an empty QuestCommand instance."""
+        return cls()
+
+
+def get_quests_for_pirate(pirate_entity_id):
+    pirate_contract_addr, pirate_token_id = pirate_entity_id.split('-')
+    pirate_token_id = int(pirate_token_id)
+
+    pirate_command_mappings_df = pn._pirate_command_mappings.get_mappings_df()
+
+    # Set the appropriate generation to make sure we look up the proper pirate
+    generation = 1 if pirate_contract_addr != pn._contract_PirateNFT_addr else 0
+
+    matching_row = pirate_command_mappings_df[(pirate_command_mappings_df['tokenId'] == pirate_token_id) & (pirate_command_mappings_df['Gen'] == generation)]
+
+    if not matching_row.empty:
+        # Format is: quest_name:times_to_execute:energy_threshold,times_to_execute:energy_threshold,...
+        quest_command_str = matching_row.iloc[0]['Quest']
+        if isinstance(quest_command_str, str):
+            quest_commands = []  # List to store QuestCommand instances
+
+            # Split the quest_command_str by commas to get sets of commands
+            command_sets = quest_command_str.split(',')
+
+            for command_set in command_sets:
+                # Split each set by colons to extract quest name, times to execute, and energy threshold
+                parts = command_set.split(':')
+                if len(parts) == 3:
+                    quest_name, times_to_execute, energy_threshold = parts
+                    times_to_execute = int(times_to_execute)
+                    energy_threshold = float(energy_threshold)
+
+                    # Create a QuestCommand instance and append it to the list
+                    quest_command = QuestCommand(
+                        quest_name=quest_name,
+                        times_to_execute=times_to_execute,
+                        pirate_entity_id=pirate_entity_id,
+                        energy_threshold=energy_threshold
+                    )
+                    quest_commands.append(quest_command)
+
+            return quest_commands  # Return the list of QuestCommand instances
+
+    return None  # Token ID and generation not found in the DataFrame or quest_command_str is not a string
+
+
 # Executed a quest
 def start_quest(address, private_key, pirate_id, quest_data):
 
@@ -12,11 +82,11 @@ def start_quest(address, private_key, pirate_id, quest_data):
     token_contract, token_id = pn.graph_id_to_address_and_tokenId(pirate_id)
 
     # 2. Fetch comprehensive quest data
-    quests_data = pn.fetch_quest_data()
+    all_quests_data = pn.fetch_quest_data()
 
     # 3. Extract input details for the specified quest ID
     quest_inputs = None
-    for q in quests_data['data']['quests']:
+    for q in all_quests_data['data']['quests']:
         if q['id'] == quest_data['id']:
             quest_inputs = q['inputs']
             break

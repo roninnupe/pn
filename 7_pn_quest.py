@@ -1,5 +1,6 @@
 import argparse
 import time
+import pandas as pd
 import pn_helper as pn
 import pn_quest as PNQ
 import questionary
@@ -20,33 +21,26 @@ custom_style = Style.from_dict({
     'question': 'cyan bold',
 })
 
-quest_menu = {
-    2: "📦 Load Cargo",
-    19: "🪓 Chop More Wood",
-    20: "🌾 Harvest More Cotton",
-    21: "⛏️ Mine More Iron",
-    54: "🔍 Finding the Lost",
-    99: "🚪 Exit"
-}
+# Load data from quest_name_mapping.csv
+quest_name_mapping_df = pd.read_csv(pn.data_path("quest_name_mapping.csv"))
 
-quest_colors = {
-    "📦 Load Cargo": "\033[93m",          # Light Blue
-    "🪓 Chop More Wood": "\033[95m",     # Light Purple
-    "🌾 Harvest More Cotton": "\033[96m", # Light Cyan
-    "⛏️ Mine More Iron": "\033[97m",     # White
-    "🔍 Finding the Lost": "\033[96m"          # Light Cyan (or choose another color)
-}
+# Initialize quest_menu and quest_colors dictionaries
+quest_menu = {}
+quest_colors = {}
 
-# Color Constants for CLI
-C_RED = "\033[91m"
-C_GREEN = "\033[92m"
-C_YELLOW = "\033[93m"
-C_BLUE = "\033[94m"
-C_MAGENTA = "\033[95m"
-C_CYAN = "\033[96m"
-C_END = '\033[0m'  # Reset to the default color
-C_YELLOWLIGHT = "\033[33m"
+# Iterate through the rows of the DataFrame to populate the dictionaries
+for index, row in quest_name_mapping_df.iterrows():
+    symbol = row['symbol']
+    quest_name = row['quest_name']
+    quest_id = int(row['quest_id'])
+    color = row['color']
+    full_quest_name = symbol + " " + quest_name
 
+    quest_menu[quest_id] = full_quest_name
+    quest_colors[full_quest_name] = color
+
+# Add the "Exit" option to quest_menu
+quest_menu[99] = "🚪 Exit"
 
 def display_quest_menu():
     # ASCII Banner
@@ -113,10 +107,10 @@ def handle_row(row, chosen_quests, is_multi_threaded=True):
     key = row['key']
     buffer = []
 
-    buffer.append(f"{C_BLUE}---------------------- Wallet {wallet_id} ----------------------{C_END}")
+    buffer.append(f"{pn.COLOR['BLUE']}---------------------- Wallet {wallet_id} ----------------------{pn.COLOR['END']}")
 
     initial_energy_balance = pn.get_energy(address)
-    buffer.append(f"Initial energy balance: {C_YELLOWLIGHT}{initial_energy_balance}{C_END}")
+    buffer.append(f"Initial energy balance: {pn.COLOR['YELLOWLIGHT']}{initial_energy_balance}{pn.COLOR['END']}")
 
     for chosen_quest in chosen_quests:
         quest_energy_cost = chosen_quest['energy']
@@ -124,20 +118,23 @@ def handle_row(row, chosen_quests, is_multi_threaded=True):
             buffer.append(f"Energy insufficient for quest {chosen_quest['name']}. Moving to next quest or wallet.")
             continue
 
-        buffer.append(f"    {quest_colors[chosen_quest['name']]}{chosen_quest['name']}{C_END}")
+        color_name = quest_colors[chosen_quest['name']]
+        color_constant = pn.COLOR[color_name.upper()]
+
+        buffer.append(f"    {color_constant}{chosen_quest['name']}{pn.COLOR['END']}")
         pirate_id = get_pirate_id(address)
         txn_hash_hex, status = PNQ.start_quest(address, key, pirate_id, chosen_quest)
         if status == "Successful": 
-            buffer.append(f"        {pn.formatted_time_str()} Transaction {status}: {C_GREEN}{txn_hash_hex}{C_END}")
+            buffer.append(f"        {pn.formatted_time_str()} Transaction {status}: {pn.COLOR['GREEN']}{txn_hash_hex}{pn.COLOR['END']}")
         else:
-            buffer.append(f"        {pn.formatted_time_str()} Transaction {status}: {C_RED}{txn_hash_hex}{C_END}")
+            buffer.append(f"        {pn.formatted_time_str()} Transaction {status}: {pn.COLOR['RED']}{txn_hash_hex}{pn.COLOR['END']}")
             break # adding failsafe to break if a transaction fails
 
         initial_energy_balance -= quest_energy_cost
-        buffer.append(f"        Remaining energy: {C_CYAN}{initial_energy_balance}{C_END}")
+        buffer.append(f"        Remaining energy: {pn.COLOR['CYAN']}{initial_energy_balance}{pn.COLOR['END']}")
 
-    buffer.append(f"\nTotal Remaining energy for wallet {wallet_id}: {C_CYAN}{initial_energy_balance}{C_END}")
-    buffer.append(f"{C_BLUE}-------------------------------------------------------{C_END}")
+    buffer.append(f"\nTotal Remaining energy for wallet {wallet_id}: {pn.COLOR['CYAN']}{initial_energy_balance}{pn.COLOR['END']}")
+    buffer.append(f"{pn.COLOR['BLUE']}-------------------------------------------------------{pn.COLOR['END']}")
     print("\n".join(buffer))
 
 
