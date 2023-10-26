@@ -389,7 +389,7 @@ def fetch_game_item_data(address):
 def fetch_game_items_data():
     item_query = """
     {
-    gameItems {
+    gameItems(first: 1000) {
         name
         tokenId
         traits {

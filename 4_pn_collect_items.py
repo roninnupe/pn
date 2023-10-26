@@ -182,7 +182,9 @@ def main():
                     skip_transfer = True
                     break
                 if user_input.lower() == 'x':
-                    exit()    
+                    exit() 
+                if user_input == "":
+                    break   
                 else:
                     if "," in user_input:
                         parsed_user_input = user_input.split(',')
