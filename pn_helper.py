@@ -386,6 +386,33 @@ def fetch_game_item_data(address):
     return get_data(query)
 
 
+def fetch_game_items_data():
+    item_query = """
+    {
+    gameItems {
+        name
+        tokenId
+        traits {
+        value
+        metadata {
+            name
+        }
+        }
+    }
+    }
+    """
+    data = get_data(item_query)
+    
+    # Check if the data has the expected structure
+    if isinstance(data, dict) and "data" in data and "gameItems" in data["data"]:
+        game_items = data["data"]["gameItems"]
+        
+        # Check if game_items is a list of dictionaries
+        if isinstance(game_items, list) and all(isinstance(item, dict) for item in game_items):
+            return game_items
+    return {}
+
+
 def get_amount_by_item_token_id(data, target_token_id):
     # Extract the 'gameItems' list from the JSON data
     game_items = data.get('data', {}).get('accounts', [])[0].get('gameItems', [])

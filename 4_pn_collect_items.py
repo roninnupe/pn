@@ -57,17 +57,43 @@ def batch_transfer(web3, contract, recipient, operator, private_key, wallet_addr
 def main():
     args = parse_arguments()
 
-    print(f"{pn.C_YELLOW}Sender(s) addresses .csv{pn.C_END}")
-    selected_senders = pn.select_file(prefix="addresses_pk",file_extension=".csv")
-    print(f"{pn.C_YELLOW}Recipients(s) addresses .csv{pn.C_END}")
-    selected_recipients = pn.select_file(prefix="addresses", file_extension=".csv")
+    sender_range_input = input("Input the wallets you'd like to collect items from from: ")
+    walletlist = pn.parse_number_ranges(sender_range_input)
+    selected_senders = pn.get_full_wallet_data(walletlist)
 
-    # Load data from JSON
-    with open(pn.data_path("data_tokenId_items.json"), 'r') as f:
-        data = json.load(f)
-        gameItems = data["data"]["gameItems"]
-        # Convert list of dictionaries to a dictionary
-        item_to_tokenId = {item["name"].lower(): int(item["tokenId"]) for item in gameItems}
+    # Get the recipient address from the file (will default with no input if only one recipient in file)
+    recipient_range_input = input("Input the wallets you'd like to send items to: ")
+    walletlist = pn.parse_number_ranges(recipient_range_input)
+    selected_recipients = pn.get_full_wallet_data(walletlist)
+
+    # Load data from the fetch_game_items_data function
+    gameItems = pn.fetch_game_items_data()
+
+    # Initialize dictionaries to store item_to_tokenId and soulbound_tokenIds
+    item_to_tokenId = {}
+    soulbound_tokenIds = []
+
+    # Iterate through the gameItems and check the traits
+    for item in gameItems:
+
+        item_name = item["name"].lower()
+        token_id = int(item["tokenId"])
+        traits = item.get("traits", [])
+
+        # Check for the soulbound trait and add to soulbound_tokenIds if true
+        soulbound_trait = any(
+            trait.get("metadata", {}).get("name") == "soulbound" and trait.get("value") == "true"
+            for trait in traits
+        )
+        if soulbound_trait:
+            soulbound_tokenIds.append(token_id)
+
+        # Store item_name and token_id in item_to_tokenId
+        item_to_tokenId[item_name] = token_id
+
+    # soulbound_tokenIds now contains a list of tokenIds where soulbound is true
+    print(soulbound_tokenIds)
+    input()
 
     # Load data from CSV
     df = pd.read_csv(pn.data_path("game_items.csv"))
@@ -79,17 +105,16 @@ def main():
     game_items_contract = pn.Web3Singleton.get_GameItems()
 
     # Set the recipient address(es) LFG    
-    df_recipients = pd.read_csv(selected_recipients)
-    recipients = df_recipients['address'].tolist()
+    recipients = selected_recipients['address'].tolist()
 
     recipient_cycle = cycle(recipients)
 
     #grab the arg wlletfiles of senders
-    df_senders = pd.read_csv(selected_senders)
+    df_senders = selected_senders
 
     #specify a list of token_ids to not try and send. currently it's just soulbound tokens
     # note:81 is cutlass - skipping this for now
-    skip_token_ids = [80,100,101,102,209,210,211,212,213,214,215,216,217,218,219,220,221,222]
+    skip_token_ids = soulbound_tokenIds #[80,100,101,102,209,210,211,212,213,214,215,216,217,218,219,220,221,222]
 
     # Iterate over rows in the dataframe
     for index, row in df.iterrows():
@@ -103,15 +128,15 @@ def main():
             continue
 
         #extract the sender wallet name for output to display to make sure you're sending from where you want to
-        sender_wallet_name = filtered_sender_df['wallet'].iloc[0]
+        sender_wallet_name = filtered_sender_df['identifier'].iloc[0]
         private_key = filtered_sender_df['key'].iloc[0]      
         
         #grab the recipeint for this cycle
         current_recipient = next(recipient_cycle).lower()
 
         #extract the recipient wallet name for output to display to make sure you know where you are sending to
-        filtered_recipient_df = df_recipients[df_recipients['address'].str.lower() == current_recipient]        
-        recipient_wallet_name = filtered_recipient_df['wallet'].iloc[0]
+        filtered_recipient_df = selected_recipients[selected_recipients['address'].str.lower() == current_recipient]        
+        recipient_wallet_name = filtered_recipient_df['identifier'].iloc[0]
 
         recipient_address = to_checksum_address(current_recipient)
         wallet_address = to_checksum_address(current_wallet)  
