@@ -131,18 +131,18 @@ def excel_sheet(json_string, ordered_addresses, file_name_start, max_thread_coun
     # Freeze the first row (row 1, column 0)
     worksheet.freeze_panes(1, 0)
 
-    #create a vuewabke table dusokat
+    #create a viewable table
     worksheet.add_table(0, 0, df.shape[0], df.shape[1]-1, {'columns': [{'header': col} for col in df.columns]})
 
-    # Calculate column sums
-    column_sums = df.iloc[:, 2:].sum().tolist()  # Sum columns from 3rd column (index 2) to the last
+    # Calculate column sums starting from the 4th column (index 3) to the last
+    column_sums = df.iloc[:, 3:].sum().tolist()  
 
     # Define the row number where you want to insert the sums (e.g., after the last row of the DataFrame)
     row_number = df.shape[0] + 2  # Adjust the row number as needed
 
-    # Write the sums to the Excel worksheet outside of the table
+    # Write the sums to the Excel worksheet starting from the 4th column (index 3)
     for col_num, value in enumerate(column_sums):
-        worksheet.write(row_number, col_num + 2, value)  # Offset by 2 columns to match the DataFrame
+        worksheet.write(row_number, col_num + 3, value)  # Offset by 3 columns to start from the 4th column
 
     # Autofit column width to fit the content
     for i, col in enumerate(df.columns):
@@ -154,7 +154,8 @@ def excel_sheet(json_string, ordered_addresses, file_name_start, max_thread_coun
     # Code to export a CSV copy to a directory called inventory only if you have that directory
     if os.path.exists("inventory"):
         
-        sums_df = pd.DataFrame([[None, None] + column_sums], columns=df.columns)
+        # Create a DataFrame to store the sums
+        sums_df = pd.DataFrame([column_sums], columns=df.columns[3:])  # Exclude the first three columns
 
         # Drop columns that are all NA from sums_df
         sums_df = sums_df.dropna(axis=1, how='all')
@@ -162,6 +163,30 @@ def excel_sheet(json_string, ordered_addresses, file_name_start, max_thread_coun
         df = df._append(sums_df, ignore_index=True)
 
         df.to_csv(f"inventory/{file_name_start}.csv", index=False)
+
+
+account_xp_thresholds = [0,75,160,295,485,720,995,1335,2100,3000]
+
+def calculate_command_rank_and_xp_needed(current_account_xp):
+    for rank, threshold in enumerate(account_xp_thresholds, start=0):
+        if current_account_xp < threshold:
+            xp_needed_to_next_rank = threshold - current_account_xp
+            return rank, xp_needed_to_next_rank
+    return len(account_xp_thresholds), 0  # Default to the highest rank with no xp needed
+
+
+def get_current_account_xp_and_rank(account_data):
+    components = account_data.get("worldEntity", {}).get("components", [])
+    
+    for component in components:
+        fields = component.get("fields", [])
+        for field in fields:
+            if field.get("name") == "current_account_xp":
+                current_account_xp = int(field.get("value", ""))
+                command_rank, xp_needed = calculate_command_rank_and_xp_needed(current_account_xp)
+                return current_account_xp, command_rank, xp_needed
+    
+    return None, None, None  # Return None if not found
 
 
 def handle_wallet(walletID, eth_to_usd_price, row):
@@ -172,12 +197,17 @@ def handle_wallet(walletID, eth_to_usd_price, row):
     gameItems = row['gameItems']
     nfts = row['nfts']
 
+    # Extract the current_account_xp value
+    current_account_xp, command_rank, xp_needed = get_current_account_xp_and_rank(row)
+
     ship_types_count = {}
 
     # Initialize a dictionary to store data for the current wallet
     wallet_data = {
         'walletID': walletID,
         'address': address,
+        'CR': command_rank,
+        'CP needed': xp_needed,
         'Nova $': None,
         'Energy': None,
         'PGLD': 0
@@ -270,6 +300,23 @@ def main():
     start_time = time.time()
 
     query = f"""
+
+        fragment WorldEntityComponentValueCore on WorldEntityComponentValue {{
+        id
+        fields {{
+            name
+            value
+        }}
+        }}
+
+        fragment WorldEntityCore on WorldEntity {{
+        id
+        components {{
+            ...WorldEntityComponentValueCore
+        }}
+        name
+        }}
+
         {{
             accounts(where: {{address_in: {formatted_output}}}){{
                 address
@@ -284,6 +331,9 @@ def main():
                 }}
                 nfts(where:{{nftType: "ship"}}){{
                     name
+                }}
+                worldEntity{{
+                    ...WorldEntityCore
                 }}        
             }}
         }}

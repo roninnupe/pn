@@ -96,7 +96,7 @@ def start_quest(address, private_key, pirate_id, quest_data):
         return None, "Failed due to missing quest inputs"
 
     # Token type mapping
-    token_type_mapping = {'ERC721': 2,'ERC20': 1}
+    token_type_mapping = {'ERC1155':3, 'ERC721': 2,'ERC20': 1}
 
     # 4. Construct the input tuples for the quest
     quest_inputs_list = []
