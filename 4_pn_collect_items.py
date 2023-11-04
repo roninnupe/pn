@@ -14,6 +14,8 @@ def parse_arguments():
     # Add the 'automate' argument
     parser.add_argument('--automate', action='store_true', help='Automate the process')
 
+    parser.add_argument("--itemIds", type=str, default=None, help="Specify the itemIds you'd like to move (default: None)") 
+
     return parser.parse_args()
 
 #batch_transfer(web3, game_items_contract, recipient_address, operator_address, private_key, wallet_address, token_ids, amounts)
@@ -91,10 +93,6 @@ def main():
         # Store item_name and token_id in item_to_tokenId
         item_to_tokenId[item_name] = token_id
 
-    # soulbound_tokenIds now contains a list of tokenIds where soulbound is true
-    print(soulbound_tokenIds)
-    input()
-
     # Load data from CSV
     df = pd.read_csv(pn.data_path("game_items.csv"))
     # Strip whitespaces from column names
@@ -115,6 +113,11 @@ def main():
     #specify a list of token_ids to not try and send. currently it's just soulbound tokens
     # note:81 is cutlass - skipping this for now
     skip_token_ids = soulbound_tokenIds #[80,100,101,102,209,210,211,212,213,214,215,216,217,218,219,220,221,222]
+
+    # extract out a list of only the token Ids you want to send
+    include_only_token_ids = None
+    if args.itemIds:
+        include_only_token_ids = [int(token_id) for token_id in args.itemIds.split(',')]
 
     # Iterate over rows in the dataframe
     for index, row in df.iterrows():
@@ -153,8 +156,8 @@ def main():
                 cellValue = int(row[item])
                 if cellValue > 0:
                     token_id = item_to_tokenId[item_lower]
-                    if(token_id in skip_token_ids) :
-                        print(f"Skipping {cellValue} x {item}")
+                    if(token_id in skip_token_ids) or (include_only_token_ids is not None and token_id not in include_only_token_ids):
+                        print(f"Skipping {cellValue} x {item}")              
                     else:
                         token_ids.append(token_id)
                         amounts.append(cellValue)
