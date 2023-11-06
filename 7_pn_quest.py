@@ -12,6 +12,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 # Number of threads to use
 MAX_THREADS = 2
+_pirate_ids_dict = {}
 
 custom_style = Style.from_dict({
     'questionmark': '#E91E63 bold',
@@ -122,7 +123,12 @@ def handle_row(row, chosen_quests, is_multi_threaded=True):
         color_constant = pn.COLOR[color_name.upper()]
 
         buffer.append(f"    {color_constant}{chosen_quest['name']}{pn.COLOR['END']}")
-        pirate_id = get_pirate_id(address)
+
+        # load up all the pirate IDs per address
+        pirate_ids = _pirate_ids_dict.get(address.lower())
+        # grab the first pirate ID - will make it smarter later to be the captain
+        pirate_id = pirate_ids[0]
+
         txn_hash_hex, status = PNQ.start_quest(address, key, pirate_id, chosen_quest)
         if status == "Successful": 
             buffer.append(f"        {pn.formatted_time_str()} Transaction {status}: {pn.COLOR['GREEN']}{txn_hash_hex}{pn.COLOR['END']}")
@@ -155,6 +161,8 @@ def parse_arguments():
 
 
 def main_script():
+
+    global _pirate_ids_dict   
 
     # Pull arguments out for start, end, and delay
     args = parse_arguments()
@@ -208,6 +216,9 @@ def main_script():
         pn.handle_delay(args.delay_start)
 
     df_addresses = pn.get_full_wallet_data(walletlist)
+
+    addresses_list = df_addresses['address'].tolist()
+    _pirate_ids_dict = pn.get_pirate_ids_dictionary(addresses_list)    
 
     while True:
 

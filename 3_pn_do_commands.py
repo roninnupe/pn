@@ -15,6 +15,7 @@ SLOW_FACTOR = 0.5
 _pending_bounties = {}
 _successfully_started_bounties = {}
 _fallback_bounties = []
+_pirate_ids_dict = {}
 
 
 def input_choose_bounty(prompt="Please select the default bounty you're interested in:"):
@@ -104,7 +105,7 @@ def process_address(args, web3, bounty_contract, bounty_data, row, is_multi_thre
         return buffer, num_ended_bounties, num_started_bounties
 
     # load up all the pirate IDs per address
-    pirate_ids = pn.get_pirate_ids(address)
+    pirate_ids = _pirate_ids_dict.get(address.lower())
 
     # Assuming pirate_ids is a list of strings like ["123-456", "789-1011"]
     friendly_pirate_ids = [pirate_id.split('-')[1] for pirate_id in pirate_ids]
@@ -249,10 +250,11 @@ def retry(max_retries=3, delay_seconds=300):
 
 
 @retry(max_retries=12, delay_seconds=300)
-def body_logic(args, df_addressses):
+def body_logic(args, df_addresses):
 
     global _pending_bounties
-    global _successfully_started_bounties    
+    global _successfully_started_bounties
+    global _pirate_ids_dict    
 
     # Set the times left to loop to the loop limit, if the arg is specified
     # This just helps create a limit on how many times we can loop
@@ -282,6 +284,10 @@ def body_logic(args, df_addressses):
         # reload the pirate bounty mappings, because this could change between loop iterations and we want to reflect changes
         pn._pirate_command_mappings.reload_data()
 
+
+        addresses_list = df_addresses['address'].tolist()
+        _pirate_ids_dict = pn.get_pirate_ids_dictionary(addresses_list)
+
         # CODE if we are going to run bounties multithreaded 
         if args.max_threads > 1 :
             print("Initiating Multithreading")
@@ -289,7 +295,7 @@ def body_logic(args, df_addressses):
             with ThreadPoolExecutor(max_workers=args.max_threads) as executor:
                 # Submit jobs to the executor
                 futures = [executor.submit(process_address, args, web3, bounty_contract, bounty_data, row, True) 
-                    for index, row in df_addressses.iterrows()]
+                    for index, row in df_addresses.iterrows()]
 
                 # Collect results as they come in
                 for future in futures:
@@ -299,14 +305,14 @@ def body_logic(args, df_addressses):
 
         # if we are going to go in order sequentially
         else:
-            for index, row in df_addressses.iterrows():
+            for index, row in df_addresses.iterrows():
                 buffer, num_ended_bounties, num_started_bounties = process_address(args, web3, bounty_contract, bounty_data, row, False)
                 ended_bounties += num_ended_bounties
                 started_bounties += num_started_bounties
 
         end_time = time.time()
         execution_time = end_time - start_time    
-        number_of_wallets = len(df_addressses)
+        number_of_wallets = len(df_addresses)
         average_execution_time = execution_time / number_of_wallets 
 
         print(f"\nclaimed {ended_bounties} bounties and started {started_bounties} bounties in {execution_time:.2f} seconds (avg of {average_execution_time:.2f} s for {number_of_wallets} wallet(s))")        
