@@ -197,13 +197,13 @@ def read_addresses(file_path):
         return [line.strip().lower() for line in f]
 
 
-# takes a iterable of addresses and returns it in the string format of [Address1, Address2, ... AddressX]
+# Takes an iterable of addresses and returns it in the string format of [address1, address2, ... addressX]
 def format_addresses_for_query(addresses):
-    # form addresses into a comma string with spaces
-    comma_str_addresses = ', '.join(f'"{address}"' for address in addresses)
+    # Form addresses into a comma string with spaces, lowercasing each address
+    comma_str_addresses = ', '.join(f'"{address.lower()}"' for address in addresses)
 
-    # wrap that comma string of addresses into brackets
-    return f"[{comma_str_addresses}]"   
+    # Wrap that comma string of addresses into brackets
+    return f"[{comma_str_addresses}]" 
 
 
 # gets the Eth to USD conversion
@@ -573,6 +573,46 @@ def get_pirate_ids(address):
     ]
 
     return pirate_ids
+
+
+def get_pirate_ids_dictionary(addresses):
+    formatted_output = format_addresses_for_query(addresses)
+    query = f"""
+    {{
+        accounts(where: {{address_in: {formatted_output}}}){{
+            address
+            nfts(where:{{or: [{{nftType: "pirate"}}, {{nftType: "starterpirate"}}]}}){{
+                name
+                nftType
+                id
+                tokenId
+                traits {{ 
+                    value
+                    metadata {{
+                        name
+                    }}
+                }}            
+            }}
+        }}
+    }}
+    """
+
+    json_data = get_data(query)
+
+    # Create a dictionary to store pirate IDs for each address
+    pirate_ids_dict = {}
+
+    for account in json_data['data']['accounts']:
+        address = account['address']
+        pirate_ids = [
+            nft['id']
+            for nft in account.get('nfts', [])
+        ]
+
+        # Store the pirate IDs in the dictionary with the address as the key
+        pirate_ids_dict[address] = pirate_ids
+
+    return pirate_ids_dict    
 
     
 # Selects a wallet from a CSV returns the name, address, and key associated with the wallet
