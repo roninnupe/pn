@@ -614,6 +614,35 @@ def get_pirate_ids_dictionary(addresses):
 
     return pirate_ids_dict    
 
+
+def get_currency_dictionary(addresses):
+    formatted_output = format_addresses_for_query(addresses)
+    query = f"""
+    {{
+        accounts(where: {{address_in: {formatted_output}}}){{
+            address
+            currencies{{
+                amount
+            }}
+        }}
+    }}
+    """
+
+    json_data = get_data(query)
+
+    # Create a dictionary to store currency amounts for each address
+    currency_dict = {}
+
+    for account in json_data['data']['accounts']:
+        address = account['address']
+        # Assume only one currency amount will be returned per address
+        currency_amount = account.get('currencies', [{}])[0].get('amount', 0)
+
+        # Store the currency amount in the dictionary with the address as the key
+        currency_dict[address] = currency_amount
+
+    return currency_dict
+
     
 # Selects a wallet from a CSV returns the name, address, and key associated with the wallet
 # if there is only one address in the csv file, it returns the data instantly 

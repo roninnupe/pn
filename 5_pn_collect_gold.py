@@ -6,6 +6,8 @@ import pandas as pd
 import pn_helper as pn
 from eth_utils import to_checksum_address
 
+_currency_dict = {}
+
 def parse_arguments():
     parser = argparse.ArgumentParser(description='Move PGLD from a list of wallets found in the sender_csv to the receiver_address. Optionally specify an operator which is a wallet authorized to move the gold, otherwise it will assume the reciever_address is the operator. You may also specify a range (leaveBehindMin and leaveBehindMax) to leave behind a random amount of gold between those two values.')
 
@@ -23,25 +25,21 @@ def parse_arguments():
 
     return parser.parse_args()
 
-def make_query(address):
-    return f"""
-    {{
-      accounts(where: {{address: "{address}"}}){{
-        address
-        currencies{{
-            amount
-        }}
-      }}
-    }}
-    """
 
 def main():
+
+    global _currency_dict
+
     args = parse_arguments()
 
-    print(f"{pn.C_YELLOW}Sender(s) addresses .csv{pn.C_END}")
-    selected_senders = pn.select_file(prefix="addresses_pk",file_extension=".csv")
-    print(f"{pn.C_YELLOW}Recipients(s) addresses .csv{pn.C_END}")
-    selected_recipients = pn.select_file(prefix="addresses", file_extension=".csv")  
+    sender_range_input = input("Input the wallets you'd like to collect items from from: ")
+    walletlist = pn.parse_number_ranges(sender_range_input)
+    selected_senders = pn.get_full_wallet_data(walletlist)
+
+    # Get the recipient address from the file (will default with no input if only one recipient in file)
+    recipient_range_input = input("Input the wallets you'd like to send items to: ")
+    walletlist = pn.parse_number_ranges(recipient_range_input)
+    selected_recipients = pn.get_full_wallet_data(walletlist)
 
     leave_behind_min = args.leave_behind_min
     leave_behind_max = args.leave_behind_max
@@ -51,19 +49,19 @@ def main():
     min_move = args.min_move * X_PGLD_LONG
 
     # Now you can use these variables in your script as needed.
-    print("Receiver CSV File:", selected_recipients)
-    print("Sender CSV File:", selected_senders)
     print("Leave Behind Min:", leave_behind_min)
     print("Leave Behind Max:", leave_behind_max)
     print("Min Move Amount:", args.min_move)
     print(f"{pn.C_GREEN}----------------------------------------------------------------------------------------------------------------------------------------{pn.C_END}")
     
-    #grab the arg wlletfiles of senders
-    df_senders = pd.read_csv(selected_senders)
-
+    # get the data frame of senders
+    df_senders = selected_senders
+    # get the addresses list of those senders to pull the currency values in one shot
+    addresses_list = df_senders['address'].tolist()    
+    _currency_dict = pn.get_currency_dictionary(addresses_list)
+    
      # Set the recipient address(es)    
-    df_recipients = pd.read_csv(selected_recipients)
-    recipients = df_recipients['address'].tolist()
+    recipients = selected_recipients['address'].tolist()
 
     recipient_cycle = cycle(recipients)   
 
@@ -74,53 +72,49 @@ def main():
     for index, row in df_senders.iterrows():
 
         # grab the current wallet in the data to potentially be transferred
-        wallet_name = row['wallet']
+        wallet_name = row['identifier']
         sender_address = row['address'].lower()
         private_key = row['key']
 
-        query = make_query(sender_address)
-        json_data = pn.get_data(query)
-        
-        for account in json_data['data']['accounts']:      
+        # Pull the initial PGLD out of the dictionary
+        PGLD_initial = int(_currency_dict.get(sender_address))
+
+        if PGLD_initial > 0:
             
-            # Set PGLD value
-            pgld = 0
+            PGLD_to_move = PGLD_initial
 
-            if 'currencies' in account and len(account['currencies']) > 0:
-                og_pgld = int(account['currencies'][0]['amount'])
-                pgld = og_pgld
+            #generate a random amount of gold to leave behind and adjust pgld to move
+            leave_behind = 0.0000001
+            if leave_behind_max > 0:
+                leave_behind = random.randint(leave_behind_min, leave_behind_max) * X_PGLD_LONG
+                PGLD_to_move = PGLD_initial - leave_behind
 
-                #generate a random amount of gold to leave behind and adjust pgld to move
-                leave_behind = 0.0000001
-                if leave_behind_max > 0:
-                    leave_behind = random.randint(leave_behind_min, leave_behind_max) * X_PGLD_LONG
-                    pgld = pgld - leave_behind
-                    #print(f"{pn.C_MAGENTA}We plan to try to leave behind at least {leave_behind / X_PGLD_LONG} gold.{pn.C_END}")
+                print(f"{pn.C_CYAN}{wallet_name}{pn.C_END} - We found {pn.C_YELLOW}{PGLD_initial / X_PGLD_LONG} gold {pn.C_END}and are required to leave behind at least ~ {leave_behind / X_PGLD_LONG} gold")
+            else:
+                print(f"{pn.C_CYAN}{wallet_name}{pn.C_END} - We found {pn.C_YELLOW}{PGLD_initial / X_PGLD_LONG} gold {pn.C_END}")                    
 
-                print(f"{pn.C_CYAN}{wallet_name}{pn.C_END} - We found {pn.C_YELLOW}{og_pgld / X_PGLD_LONG} gold {pn.C_END}and are required to leave behind at least ~ {leave_behind / X_PGLD_LONG} gold")                    
+            #we must have a positve value for PGLD to try to leaveBehind
+            if PGLD_to_move >= min_move:
 
-                #we must have a positve value for PGLD to try to leaveBehind
-                if pgld >= min_move:
+                #grab the recipeint for this cycle
+                current_recipient = next(recipient_cycle)
 
-                    #grab the recipeint for this cycle
-                    current_recipient = next(recipient_cycle)
+                print(f"\n   We plan to{pn.C_GREEN} TRANSFER{pn.C_YELLOW} {PGLD_to_move / X_PGLD_LONG} gold{pn.C_END} to: {current_recipient}\n")
+                if args.automate:
+                    transfer_PGLD(web3, PGLD_contract, sender_address, private_key, current_recipient, PGLD_to_move) 
+                    random_delay = random.uniform(0.5, 1.0)
+                    print(f"\n\n...sleeping for {random_delay} seconds...\n\n")
+                    time.sleep(random_delay)
 
-                    print(f"\n   We plan to{pn.C_GREEN} TRANSFER{pn.C_YELLOW} {pgld / X_PGLD_LONG} gold{pn.C_END} to: {current_recipient}\n")
-                    if args.automate:
-                        transfer_PGLD(web3, PGLD_contract, sender_address, private_key, current_recipient, pgld) 
-                        random_delay = random.uniform(1.5, 5.5)
-                        print(f"\n\n...sleeping for {random_delay} seconds...\n\n")
-                        time.sleep(random_delay)
-
-                    else:
-                        user_input = input(f"Press {pn.C_GREEN}'enter'{pn.C_END} to proceed or {pn.C_RED}'s'{pn.C_END} to skip: ")
-                        if user_input.lower() == 's':
-                            print("Skipping...")
-                        else:
-                            transfer_PGLD(web3, PGLD_contract, sender_address, private_key, current_recipient, pgld)                
                 else:
-                    print(f"{pn.C_MAGENTA}= No gold to move{pn.C_END}")
-                    print(f"{pn.C_GREEN}----------------------------------------------------------------------------------------------------------------------------------------{pn.C_END}")                  
+                    user_input = input(f"Press {pn.C_GREEN}'enter'{pn.C_END} to proceed or {pn.C_RED}'s'{pn.C_END} to skip: ")
+                    if user_input.lower() == 's':
+                        print("Skipping...")
+                    else:
+                        transfer_PGLD(web3, PGLD_contract, sender_address, private_key, current_recipient, PGLD_to_move)                
+            else:
+                print(f"{pn.C_MAGENTA}= No gold to move{pn.C_END}")
+                print(f"{pn.C_GREEN}----------------------------------------------------------------------------------------------------------------------------------------{pn.C_END}")                  
 
 #ransfer_PGLD(web3, PGLD_contract, current_recipient, sender_address, private_key, sender_address, pgld)  
 def transfer_PGLD(web3, contract, sender, private_key, recipient, pgld_amount):
@@ -160,9 +154,6 @@ def transfer_PGLD(web3, contract, sender, private_key, recipient, pgld_amount):
         print("  **Error with transferring PGLD transaction:", e)
 
     print("----------------------------------------------------------------------------------------------------------------------------------------")   
-
-
-
 
 
 if __name__ == "__main__":
