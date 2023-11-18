@@ -207,7 +207,7 @@ def handle_wallet(walletID, eth_to_usd_price, row):
         'walletID': walletID,
         'address': address,
         'CR': command_rank,
-        'fights': math.ceil(xp_needed/25),
+        'fights': math.ceil(xp_needed/25) if xp_needed is not None else None,
         'Nova $': None,
         'Energy': None,
         'PGLD': 0
