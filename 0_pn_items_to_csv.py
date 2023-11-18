@@ -2,6 +2,7 @@ import requests
 import json
 import pandas as pd
 import pn_helper as pn
+import argparse
 from concurrent.futures import ThreadPoolExecutor
 
 def read_addresses(file_path):
@@ -73,7 +74,17 @@ def fetch_data(address, url):
     return response.json()
 
 def main():
-    file_path = pn.select_file(prefix="addresses_",file_extension=".txt")
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(description="Pirate Nation CSV Generation Script")
+    parser.add_argument("--csv_file", help="Name of csv file with addresses")
+    args = parser.parse_args()
+
+    if args.csv_file:
+        file_path = pn.data_path(args.csv_file)
+    else:
+        # If file_path is not provided as an argument, use pn.select_file
+        file_path = pn.select_file(prefix="addresses_", file_extension=".txt")
+
     addresses = pn.read_addresses(file_path)
     url = pn.URL_PIRATE_NATION_GRAPH_API
 

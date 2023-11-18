@@ -2,7 +2,8 @@ import argparse
 import random
 import time
 import pandas as pd
-import json
+import os
+import subprocess
 from web3 import Web3, HTTPProvider
 from eth_utils import to_checksum_address
 from itertools import cycle
@@ -93,10 +94,29 @@ def main():
         # Store item_name and token_id in item_to_tokenId
         item_to_tokenId[item_name] = token_id
 
-    # Load data from CSV
-    df = pd.read_csv(pn.data_path("game_items.csv"))
+    # Define the path to the CSV file
+    csv_file_path = pn.data_path("game_items.csv")
+
+    # Check if the CSV file exists
+    if not os.path.exists(csv_file_path):
+        # If the file doesn't exist, run the script 0_pn_items_to_csv
+        subprocess.run(["python3", "0_pn_items_to_csv.py", "--csv_file", "addresses_ronin.txt"])
+        while True:
+            if os.path.exists(csv_file_path): break
+            else: time.sleep(0.5) 
+        
+
+    # Load data from the CSV file
+    df = pd.read_csv(csv_file_path)
+
     # Strip whitespaces from column names
     df.columns = df.columns.str.strip()
+
+    # Now you can work with the DataFrame
+
+    # If the file exists, you can delete it
+    if os.path.exists(csv_file_path):
+        os.remove(csv_file_path)
 
     # Initialize web3 and contract
     web3 = pn.Web3Singleton.get_web3_Nova()
