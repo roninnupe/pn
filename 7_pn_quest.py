@@ -126,7 +126,7 @@ def handle_row(row, chosen_quests, is_multi_threaded=True):
 
         # load up all the pirate IDs per address
         pirate_ids = _pirate_ids_dict.get(address.lower())
-        # grab the first pirate ID - will make it smarter later to be the captain
+        # grab the first pirate ID - the base code has been made smarter where the first pirate id is the captain if one is set
         pirate_id = pirate_ids[0]
 
         txn_hash_hex, status = PNQ.start_quest(address, key, pirate_id, chosen_quest)

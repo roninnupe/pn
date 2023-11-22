@@ -575,29 +575,83 @@ def get_pirate_ids(address):
     return pirate_ids
 
 
+def extract_captain_token_id(data):
+    # Check if the necessary keys exist
+    if 'data' in data and 'accounts' in data['data']:
+        for account in data['data']['accounts']:
+            if 'worldEntity' in account and 'components' in account['worldEntity']:
+                for component in account['worldEntity']['components']:
+                    if 'fields' in component:
+                        for field in component['fields']:
+                            if field['name'] == 'token_id':
+                                return field['value']
+    return None
+
+
+def move_captain_to_front(pirate_ids, captain_token_id):
+    # Check if captain_token_id is None
+    if captain_token_id is None:
+        return pirate_ids
+
+    # Convert captain_token_id to string for comparison
+    captain_token_id_str = str(captain_token_id)
+
+    for pirate_id in pirate_ids:
+        # Check if pirate_id ends with the captain_token_id
+        if pirate_id.endswith(captain_token_id_str):
+            # Remove the found pirate_id from the list
+            pirate_ids.remove(pirate_id)
+            # Insert the pirate_id at the beginning of the list
+            pirate_ids.insert(0, pirate_id)
+            break  # Break the loop as we found and moved the captain
+
+    return pirate_ids
+
+
 def get_pirate_ids_dictionary(addresses):
     formatted_output = format_addresses_for_query(addresses)
     query = f"""
-    {{
-        accounts(where: {{address_in: {formatted_output}}}){{
-            address
-            nfts(where:{{or: [{{nftType: "pirate"}}, {{nftType: "starterpirate"}}]}}){{
-                name
-                nftType
-                id
-                tokenId
-                traits {{ 
-                    value
-                    metadata {{
-                        name
-                    }}
-                }}            
+
+        fragment WorldEntityComponentValueCore on WorldEntityComponentValue {{
+        id
+        fields {{
+            name
+            value
+        }}
+        }}
+
+        fragment WorldEntityCore on WorldEntity {{
+        id
+        components {{
+            ...WorldEntityComponentValueCore
+        }}
+        name
+        }}
+
+        {{
+            accounts(where: {{address_in: {formatted_output}}}){{
+                address
+                nfts(where:{{or: [{{nftType: "pirate"}}, {{nftType: "starterpirate"}}]}}){{
+                    name
+                    nftType
+                    id
+                    tokenId
+                    traits {{ 
+                        value
+                        metadata {{
+                            name
+                        }}
+                    }}            
+                }}
+                worldEntity{{
+                    ...WorldEntityCore
+                }}        
             }}
         }}
-    }}
-    """
+        """
 
     json_data = get_data(query)
+    captain_token_id = extract_captain_token_id(json_data)
 
     # Create a dictionary to store pirate IDs for each address
     pirate_ids_dict = {}
@@ -608,6 +662,8 @@ def get_pirate_ids_dictionary(addresses):
             nft['id']
             for nft in account.get('nfts', [])
         ]
+
+        pirate_ids = move_captain_to_front(pirate_ids, captain_token_id)        
 
         # Store the pirate IDs in the dictionary with the address as the key
         pirate_ids_dict[address] = pirate_ids
