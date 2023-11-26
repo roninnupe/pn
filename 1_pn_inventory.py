@@ -323,7 +323,7 @@ def main():
                 currencies{{
                     amount
                 }}
-                gameItems(where: {{amount_gt:0}}){{
+                gameItems(first: 1000 where: {{amount_gt:0}}){{
                     amount
                     gameItem{{
                         name
