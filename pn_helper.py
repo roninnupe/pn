@@ -583,8 +583,9 @@ def extract_captain_token_id(data):
                 for component in account['worldEntity']['components']:
                     if 'fields' in component:
                         for field in component['fields']:
-                            if field['name'] == 'token_id':
-                                return field['value']
+                            if field['name'] == 'nft_entity':
+                                captain_tuple = entity_to_token(int(field['value']))
+                                return f'{captain_tuple[0]}-{captain_tuple[1]}'
     return None
 
 

@@ -231,13 +231,6 @@ def main_script():
                 args_list = [(row, chosen_quests) for _, row in df_addresses.iterrows()]
                 results = list(executor.map(lambda args: handle_row(*args), args_list))
 
-            # end the loop if we don't have looping specified
-            if args.delay_loop == 0:
-                break
-            else:
-                # continue looping with necessary delay
-                pn.handle_delay(args.delay_loop)
-        
         else:
             for index, row in df_addresses.iterrows():
                 handle_row(row, chosen_quests, is_multi_threaded=False)
