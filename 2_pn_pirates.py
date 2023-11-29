@@ -105,7 +105,7 @@ def merge_price_data(source_df, price_data_file=pn.data_path('pirate_price.csv')
         for item in source_df:
             tokenId = item.get('tokenId')
             gen = item.get('Gen')
-            if tokenId is not None and gen is not None and gen is 0:
+            if tokenId is not None and gen is not None and gen == 0:
                 item['Price'] = price_mapping.get(int(tokenId), None)
 
     return source_df
