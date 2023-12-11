@@ -63,7 +63,7 @@ class BountyGroupMappings:
         """
         if not self.__initialized:
             self.__initialized = True
-            self.df = pd.read_csv(pn.data_path("bounty_group_mappings.csv"))
+            self.df = pd.read_csv("bounty_group_mappings.csv")
 
     def get_mappings_df(self):
         """
