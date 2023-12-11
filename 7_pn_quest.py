@@ -23,7 +23,7 @@ custom_style = Style.from_dict({
 })
 
 # Load data from quest_name_mapping.csv
-quest_name_mapping_df = pd.read_csv(pn.data_path("quest_name_mapping.csv"))
+quest_name_mapping_df = pd.read_csv("quest_name_mapping.csv")
 
 # Initialize quest_menu and quest_colors dictionaries
 quest_menu = {}

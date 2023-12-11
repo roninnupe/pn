@@ -1,0 +1,13 @@
+symbol,quest_name,quest_id,color
+📦,Load Cargo,2,YELLOW
+🪓,Chop More Wood,19,MAGENTA
+🌾,Harvest More Cotton,20,EXTRA
+⛏️,Mine More Iron,21,EXTRA
+🔍,Finding the Lost,54,CYAN
+💰,Roll the Bones,22,YELLOW
+💰,Motherload,23,YELLOW
+💰,Twist of Fate,48,YELLOW
+⛵,It's a Slippery Sloop,32,MAGENTA
+⛵,Get that Galleon,33,MAGENTA
+🛳️, What the Frigate?,44,MAGENTA
+🟡,Coin of the Realm,46,YELLOW
