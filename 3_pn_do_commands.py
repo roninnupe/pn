@@ -249,7 +249,7 @@ def retry(max_retries=3, delay_seconds=300):
     return decorator_retry
 
 
-@retry(max_retries=12, delay_seconds=300)
+@retry(max_retries=100000, delay_seconds=300)
 def body_logic(args, df_addresses):
 
     global _pending_bounties
@@ -307,6 +307,7 @@ def body_logic(args, df_addresses):
         else:
             for index, row in df_addresses.iterrows():
                 buffer, num_ended_bounties, num_started_bounties = process_address(args, web3, bounty_contract, bounty_data, row, False)
+                time.sleep(5)
                 ended_bounties += num_ended_bounties
                 started_bounties += num_started_bounties
 
