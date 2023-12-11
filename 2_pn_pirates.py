@@ -26,18 +26,6 @@ def map_expertise(nft):
             trait['metadata']['name'] = 'Expertise'
             trait['value'] = expertise_id_mapping[trait['value']]
 
-# Read data from a CSV file and create a dictionary mapping token IDs to rarity ranks.
-df = pd.read_csv(pn.data_path('rarity_scores_final.csv'))
-
-df.tokenId = df.tokenId.astype(str)  # Ensure all token IDs are strings.
-tokenId_rarity_dict = dict(zip(df.tokenId, df.RarityRank))
-
-# FUNCTION: Add Rarity Rank to the traits
-def add_rarity_rank(nft):
-    tokenId_str = str(nft['tokenId'])  # Convert tokenId to a string before accessing the dictionary.
-    rarity_rank = tokenId_rarity_dict.get(tokenId_str, 'No data')
-    nft['traits'].append({'metadata': {'name': 'Rarity Rank'}, 'value': rarity_rank})
-
 # FUNCTION: calculate the next chest claim date and add related traits
 def add_next_claim_date(nft):
     max_milestone_index = max([milestone['milestoneIndex'] for milestone in nft['claimedMilestones']], default=-1)
@@ -174,11 +162,8 @@ if 'data' in data and 'accounts' in data['data']:
                 # map the named expertise on to the Pirate NFT data
                 map_expertise(nft)
 
-                # Check if nftType is not 'starterpirate' before adding rarity rank and next claim date
+                # Branch on type of pirate (founder vs Gen1)
                 if nft['nftType'] == 'pirate':
-
-                    # add the rarity rank on to the Pirate NFT data
-                    add_rarity_rank(nft)
 
                     # add data around chest claims to the Pirate NFT data
                     add_next_claim_date(nft)
@@ -234,7 +219,6 @@ column_order = [
     "Expertise",
     "Background",
     "Headwear",
-    #"Rarity Rank",
     "Dice Roll 1",
     "Dice Roll 2",
     #"lastTransfer",
