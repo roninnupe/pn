@@ -46,7 +46,7 @@ def add_next_claim_date(nft):
     nft['traits'].append({'metadata': {'name': 'ClaimedChests'}, 'value': max_milestone_index+1})    
 
 # Read the level_chart into a data frame once for use 
-df_level_chart = pd.read_csv("../pn data/LevelChart.csv")
+df_level_chart = pd.read_csv("LevelChart.csv")
 
 # FUNCTION: Calculates the level based on XP and returns the amount of xp to the next level as well
 def get_potential_level(xp_value):
