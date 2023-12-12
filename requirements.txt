@@ -1,0 +1,10 @@
+pandas
+openpyxl
+requests
+xlsxwriter
+nose
+tornado
+web3
+questionary
+termcolor
+ratelimit
