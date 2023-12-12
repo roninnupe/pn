@@ -8,3 +8,5 @@ web3
 questionary
 termcolor
 ratelimit
+pygments
+flask
