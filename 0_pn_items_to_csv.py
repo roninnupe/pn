@@ -83,7 +83,7 @@ def main():
         file_path = pn.data_path(args.csv_file)
     else:
         # If file_path is not provided as an argument, use pn.select_file
-        file_path = pn.select_file(prefix="addresses_", file_extension=".txt")
+        file_path = pn.select_file(directory_path="addresses/",prefix="addresses_",file_extension=".txt")
 
     addresses = pn.read_addresses(file_path)
     url = pn.URL_PIRATE_NATION_GRAPH_API

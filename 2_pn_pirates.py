@@ -102,7 +102,7 @@ def merge_price_data(source_df, price_data_file=pn.data_path('pirate_price.csv')
 #---------------------------------------------------------
 
 # Step 1: Read addresses from a text file and create a dictionary mapping addresses to IDs.
-file_path = pn.select_file(prefix="addresses_",file_extension=".txt")
+file_path = pn.select_file(directory_path="addresses/",prefix="addresses_",file_extension=".txt")
 user_name = file_path.split('_')[1].split('.')[0]
 addresses = pn.read_addresses(file_path)
 formatted_output = pn.format_addresses_for_query(addresses)

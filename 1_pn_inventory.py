@@ -289,7 +289,7 @@ def main():
     # Parse the command-line arguments
     args = parser.parse_args()
 
-    file_path = pn.select_file(prefix="addresses_",file_extension=".txt")
+    file_path = pn.select_file(directory_path="addresses/",prefix="addresses_",file_extension=".txt")
     addresses = pn.read_addresses(file_path)
     user_name = file_path.split('_')[1].split('.')[0]
     formatted_output = pn.format_addresses_for_query(addresses)
