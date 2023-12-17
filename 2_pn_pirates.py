@@ -19,12 +19,29 @@ expertise_id_mapping = {
     "5": "Health"
 }
 
+# affinity mapping of number to actual readable name
+affinity_id_mapping = {
+    "1": "Fire",
+    "2": "Water",
+    "3": "Earth",
+    "4": "Air",
+    "5": "Lightning"
+}
+
 # FUNCTION: Maps expertise IDs to their respective names
 def map_expertise(nft):
     for trait in nft['traits']:
         if trait['metadata']['name'] == 'expertise_id':
             trait['metadata']['name'] = 'Expertise'
             trait['value'] = expertise_id_mapping[trait['value']]
+
+def map_affinity(nft):
+    for trait in nft['traits']:
+        if trait['metadata']['name'] == 'affinity_id':
+            value = trait['value']
+            affinity = affinity_id_mapping[value]
+            #print(f"{value} - {affinity}")
+            nft['traits'].append({'metadata': {'name': 'Elemental Affinity'}, 'value': affinity}) 
 
 # FUNCTION: calculate the next chest claim date and add related traits
 def add_next_claim_date(nft):
@@ -172,7 +189,9 @@ if 'data' in data and 'accounts' in data['data']:
 
                 elif nft['nftType'] == 'starterpirate':
 
-                    nft['traits'].append({'metadata': {'name': 'Gen'}, 'value': 1})                    
+                    nft['traits'].append({'metadata': {'name': 'Gen'}, 'value': 1})    
+
+                    map_affinity(nft)                
 
                     current_token_id = f"{current_token_id}"
 
