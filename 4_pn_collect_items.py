@@ -100,7 +100,7 @@ def main():
     # Check if the CSV file exists
     if not os.path.exists(csv_file_path):
         # If the file doesn't exist, run the script 0_pn_items_to_csv
-        subprocess.run(["python3", "0_pn_items_to_csv.py", "--csv_file", "addresses_ronin.txt"])
+        subprocess.run(["python3", "0_pn_items_to_csv.py", "--csv_file", "addresses.txt"])
         while True:
             if os.path.exists(csv_file_path): break
             else: time.sleep(0.5) 
