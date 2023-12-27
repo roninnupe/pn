@@ -19,12 +19,29 @@ expertise_id_mapping = {
     "5": "Health"
 }
 
+# affinity mapping of number to actual readable name
+affinity_id_mapping = {
+    "1": "Fire",
+    "2": "Water",
+    "3": "Earth",
+    "4": "Air",
+    "5": "Lightning"
+}
+
 # FUNCTION: Maps expertise IDs to their respective names
 def map_expertise(nft):
     for trait in nft['traits']:
         if trait['metadata']['name'] == 'expertise_id':
             trait['metadata']['name'] = 'Expertise'
             trait['value'] = expertise_id_mapping[trait['value']]
+
+def map_affinity(nft):
+    for trait in nft['traits']:
+        if trait['metadata']['name'] == 'affinity_id':
+            value = trait['value']
+            affinity = affinity_id_mapping[value]
+            #print(f"{value} - {affinity}")
+            nft['traits'].append({'metadata': {'name': 'Elemental Affinity'}, 'value': affinity}) 
 
 # FUNCTION: calculate the next chest claim date and add related traits
 def add_next_claim_date(nft):
@@ -46,7 +63,7 @@ def add_next_claim_date(nft):
     nft['traits'].append({'metadata': {'name': 'ClaimedChests'}, 'value': max_milestone_index+1})    
 
 # Read the level_chart into a data frame once for use 
-df_level_chart = pd.read_csv("../pn data/LevelChart.csv")
+df_level_chart = pd.read_csv("LevelChart.csv")
 
 # FUNCTION: Calculates the level based on XP and returns the amount of xp to the next level as well
 def get_potential_level(xp_value):
@@ -102,7 +119,7 @@ def merge_price_data(source_df, price_data_file=pn.data_path('pirate_price.csv')
 #---------------------------------------------------------
 
 # Step 1: Read addresses from a text file and create a dictionary mapping addresses to IDs.
-file_path = pn.select_file(prefix="addresses_",file_extension=".txt")
+file_path = pn.select_file(directory_path="addresses/",prefix="addresses_",file_extension=".txt")
 user_name = file_path.split('_')[1].split('.')[0]
 addresses = pn.read_addresses(file_path)
 formatted_output = pn.format_addresses_for_query(addresses)
@@ -172,7 +189,9 @@ if 'data' in data and 'accounts' in data['data']:
 
                 elif nft['nftType'] == 'starterpirate':
 
-                    nft['traits'].append({'metadata': {'name': 'Gen'}, 'value': 1})                    
+                    nft['traits'].append({'metadata': {'name': 'Gen'}, 'value': 1})    
+
+                    map_affinity(nft)                
 
                     current_token_id = f"{current_token_id}"
 
