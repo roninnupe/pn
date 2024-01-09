@@ -210,7 +210,9 @@ def handle_wallet(walletID, eth_to_usd_price, row):
         'fights': math.ceil(xp_needed/25) if xp_needed is not None else None,
         'Nova $': None,
         'Energy': None,
-        'PGLD': 0
+        'PGLD': 0,
+        'pirate': 0,
+        'starterpirate': 0
     }
 
     # Get the ETH balance
@@ -244,14 +246,28 @@ def handle_wallet(walletID, eth_to_usd_price, row):
 
     # get the ship counts for the account
     if GET_SHIP_COUNT:
+        pirate_count = 0
+        starterpirate_count = 0
+
         for nft in nfts:
-            ship_type = nft['name']
-            if ship_type not in ship_types_count:
-                ship_types_count[ship_type] = 0
-            ship_types_count[ship_type] += 1
+            if nft['nftType'] == 'ship':
+                ship_type = nft['name']
+                if ship_type not in ship_types_count:
+                    ship_types_count[ship_type] = 0
+                ship_types_count[ship_type] += 1
+            elif nft['nftType'] == 'pirate':
+                pirate_count += 1
+            elif nft['nftType'] == 'starterpirate':
+                starterpirate_count += 1
 
         for ship_type in ship_types_count:
             wallet_data[ship_type] = ship_types_count[ship_type]
+
+        # Add pirate and starterpirate counts to wallet_data
+        wallet_data['pirate'] = pirate_count
+        wallet_data['starterpirate'] = starterpirate_count
+
+
 
     # Iterate over game items
     for game_item in gameItems:
@@ -329,8 +345,9 @@ def main():
                         name
                     }}
                 }}
-                nfts(where:{{nftType: "ship"}}){{
+                nfts(first: 1000){{
                     name
+                    nftType
                 }}
                 worldEntity{{
                     ...WorldEntityCore

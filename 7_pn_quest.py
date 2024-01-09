@@ -1,5 +1,7 @@
 import argparse
 import time
+import functools
+import traceback
 import pandas as pd
 import pn_helper as pn
 import pn_quest as PNQ
@@ -220,12 +222,40 @@ def main_script():
     addresses_list = df_addresses['address'].tolist()
     _pirate_ids_dict = pn.get_pirate_ids_dictionary(addresses_list)    
 
-    while True:
+    try:
+        body_logic(args, chosen_quests, df_addresses)
+    except Exception as e:
+        print(f"Final exception: {e}")    
 
+def retry(max_retries=3, delay_seconds=300):
+    def decorator_retry(func):
+        @functools.wraps(func)
+        def wrapper_retry(*args, **kwargs):
+            for _ in range(max_retries + 1):
+                try:
+                    result = func(*args, **kwargs)
+                    return result  # If successful, return the result
+                except Exception as e:
+                    error_type = type(e).__name__
+                    print(f"Error Type: {error_type}")
+                    print(f"Error Message: {str(e)}")
+                    traceback.print_exc()  # Print the traceback
+                    if _ < max_retries:
+                        pn.visual_delay_for(delay_seconds, prefix="Retrying in ")
+                    else:
+                        print("Maximum retry attempts reached. Exiting...")
+                        raise e  # Re-raise the exception after max retries
+
+        return wrapper_retry
+
+    return decorator_retry
+
+@retry(max_retries=100000, delay_seconds=300)
+def body_logic(args, chosen_quests, df_addresses):
+    while True:
         start_time = time.time()
 
         if args.max_threads > 1:
-
             with ThreadPoolExecutor(max_workers=args.max_threads) as executor:
                 # Create a list of tuples, each containing the row and chosen_quests
                 args_list = [(row, chosen_quests) for _, row in df_addresses.iterrows()]

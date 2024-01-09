@@ -9,8 +9,8 @@ URL_PIRATE_NATION_GRAPH_API = "https://subgraph.satsuma-prod.com/208eb2825ebd/pr
 
 # Function to get the game items data from the GraphQL API
 def fetch_game_items_data(item_id):
-    query = {
-        "query": f'''
+
+    query_str = f'''
         {{
           gameItems(first: 1000, where: {{id: "{item_id}"}}) {{
             id
@@ -25,7 +25,13 @@ def fetch_game_items_data(item_id):
           }}
         }}
         '''
+
+    query = {
+        "query": query_str
     }
+
+    print(query_str)
+    input()
 
     response = requests.post(URL_PIRATE_NATION_GRAPH_API, json=query)
     if response.status_code == 200:
@@ -65,9 +71,7 @@ def find_top_minters(game_items_data, item_name):
 # Main function
 def main():
     items_ids = [
-        "0x3b4cdb27641bc76214a0cb6cae3560a468d9ad4a-215",
-        "0x3b4cdb27641bc76214a0cb6cae3560a468d9ad4a-219",
-        "0x3b4cdb27641bc76214a0cb6cae3560a468d9ad4a-223"
+        "0x3b4cdb27641bc76214a0cb6cae3560a468d9ad4a-316"
     ]
 
     for item_id in items_ids:
