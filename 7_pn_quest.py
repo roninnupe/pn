@@ -6,6 +6,7 @@ import pandas as pd
 import pn_helper as pn
 import pn_quest as PNQ
 import questionary
+import random
 from questionary import Choice
 from pygments.token import Token
 from prompt_toolkit.styles import Style
@@ -115,6 +116,12 @@ def handle_row(row, chosen_quests, is_multi_threaded=True):
     initial_energy_balance = pn.get_energy(address)
     buffer.append(f"Initial energy balance: {pn.COLOR['YELLOWLIGHT']}{initial_energy_balance}{pn.COLOR['END']}")
 
+    # Create a copy of chosen_quests
+    shuffled_quests = list(chosen_quests)
+
+    # Shuffle the copy of the list
+    random.shuffle(shuffled_quests)
+
     for chosen_quest in chosen_quests:
         quest_energy_cost = chosen_quest['energy']
         if initial_energy_balance < quest_energy_cost:
@@ -134,6 +141,9 @@ def handle_row(row, chosen_quests, is_multi_threaded=True):
         txn_hash_hex, status = PNQ.start_quest(address, key, pirate_id, chosen_quest)
         if status == "Successful": 
             buffer.append(f"        {pn.formatted_time_str()} Transaction {status}: {pn.COLOR['GREEN']}{txn_hash_hex}{pn.COLOR['END']}")
+
+            # Random delay between 7 to 12 seconds
+            pn.handle_delay(random.randint(7, 12), time_period="second")           
         else:
             buffer.append(f"        {pn.formatted_time_str()} Transaction {status}: {pn.COLOR['RED']}{txn_hash_hex}{pn.COLOR['END']}")
             break # adding failsafe to break if a transaction fails

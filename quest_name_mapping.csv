@@ -1,4 +1,8 @@
 symbol,quest_name,quest_id,color
+📦,Exploration - 25x Gold,1,YELLOW
+🪓,Exploration - 1x Wood,3,MAGENTA
+🌾,Exploration - 1x Cotton,4,EXTRA
+⛏️,Exploration - 1x Iron,5,EXTRA
 📦,Load Cargo,2,YELLOW
 🪓,Chop More Wood,19,MAGENTA
 🌾,Harvest More Cotton,20,EXTRA
