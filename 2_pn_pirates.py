@@ -289,10 +289,11 @@ num_rows_used = df_to_export['level'].count()
 
 # Calculate the average of the price
 average_price = df_to_export['Price'].mean()
+total_price = df_to_export['Price'].sum()
 average_price_rounded = round(average_price, 4)
 
 print("------------------------------------------------------")
-print(f"{num_rows_used} pirates with {average_level_rounded:.2f} average level, {average_price_rounded:.4f} average price")
+print(f"{num_rows_used} pirates with {average_level_rounded:.2f} average level, {average_price_rounded:.4f} average price, {total_price} Eth total")
 print("------------------------------------------------------")
 
 # Export to Excel
