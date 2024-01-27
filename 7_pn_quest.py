@@ -122,7 +122,7 @@ def handle_row(row, chosen_quests, is_multi_threaded=True):
     # Shuffle the copy of the list
     random.shuffle(shuffled_quests)
 
-    for chosen_quest in chosen_quests:
+    for chosen_quest in shuffled_quests:
         quest_energy_cost = chosen_quest['energy']
         if initial_energy_balance < quest_energy_cost:
             buffer.append(f"Energy insufficient for quest {chosen_quest['name']}. Moving to next quest or wallet.")
