@@ -1,5 +1,6 @@
 import argparse
 import os
+import re
 import json
 import math
 import time
@@ -188,6 +189,12 @@ def get_current_account_xp_and_rank(account_data):
     
     return None, None, None  # Return None if not found
 
+def clean_ship_type(ship_type):
+    # This regex will match any text within parentheses, including the parentheses
+    pattern = r"\s*\([^)]*\)"
+    # Replace the matched text with an empty string
+    cleaned_ship_type = re.sub(pattern, "", ship_type).strip()
+    return cleaned_ship_type
 
 def handle_wallet(walletID, eth_to_usd_price, row):
     global GET_ETH_BALANCE, GET_ENERGY_BALANCE
@@ -251,7 +258,7 @@ def handle_wallet(walletID, eth_to_usd_price, row):
 
         for nft in nfts:
             if nft['nftType'] == 'ship':
-                ship_type = nft['name']
+                ship_type = clean_ship_type(nft['name'])
                 if ship_type not in ship_types_count:
                     ship_types_count[ship_type] = 0
                 ship_types_count[ship_type] += 1
