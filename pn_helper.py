@@ -8,6 +8,7 @@ import datetime
 import questionary
 import json
 import requests
+import math
 import pandas as pd
 from web3 import Web3
 import personal_settings # you are required to make a personal settings and define certain variables to help scripts
@@ -258,7 +259,7 @@ def get_energy(address, long_form=False):
         if long_form:
             return result
         else:
-            return round((result /  10 ** 18), 0) 
+            return math.floor(result /  10 ** 18)
     except Exception as e:
         error_type = type(e).__name__
         print(f"{C_RED}**get_energy -> Exception: {e} - {error_type}{C_END}")
