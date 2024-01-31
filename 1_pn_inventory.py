@@ -216,6 +216,7 @@ def handle_wallet(walletID, eth_to_usd_price, row):
         'CR': command_rank,
         'fights': math.ceil(xp_needed/25) if xp_needed is not None else None,
         'Nova $': None,
+        'Weth $': None,
         'Energy': None,
         'PGLD': 0,
         'pirate': 0,
@@ -224,12 +225,16 @@ def handle_wallet(walletID, eth_to_usd_price, row):
 
     # Get the ETH balance
     if GET_ETH_BALANCE:
-        eth_balance_eth = rate_limited_get_nova_eth_balance(address)
+        eth_balance_eth, weth_balance = rate_limited_get_nova_eth_balance(address)
         # if we get no nova eth back, stop trying to get future energy for accounts
         if (eth_balance_eth is None):
             GET_ETH_BALANCE = False
         else:
             wallet_data['Nova $'] = round(eth_balance_eth * eth_to_usd_price, 2)
+        if (weth_balance is None):
+            GET_ETH_BALANCE = False
+        else:
+            wallet_data['Weth $'] = round(weth_balance * eth_to_usd_price, 2)        
 
     # read the active energy for the address
     if GET_ENERGY_BALANCE:
@@ -298,8 +303,8 @@ def rate_limited_get_energy_balance(address):
 
 @limits(calls=10, period=1)
 def rate_limited_get_nova_eth_balance(address):
-    eth_balance_eth = pn.get_nova_eth_balance(address)
-    return eth_balance_eth
+    eth_balance_eth, weth_balance = pn.get_nova_eth_balance(address)
+    return eth_balance_eth, weth_balance
 
 
 def main():

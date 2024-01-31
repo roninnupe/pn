@@ -1,12 +1,12 @@
 symbol,quest_name,quest_id,color
-📦,Exploration - 25x Gold,1,YELLOW
-🪓,Exploration - 1x Wood,3,MAGENTA
-🌾,Exploration - 1x Cotton,4,EXTRA
-⛏️,Exploration - 1x Iron,5,EXTRA
-📦,Load Cargo,2,YELLOW
-🪓,Chop More Wood,19,MAGENTA
-🌾,Harvest More Cotton,20,EXTRA
-⛏️,Mine More Iron,21,EXTRA
+📦,25x Gold,1,YELLOW
+🪓,1x Wood,3,MAGENTA
+🌾,1x Cotton,4,CYAN
+⛏️,1x Iron,5,GREEN
+📦,🚫Load Cargo,2,YELLOW
+🪓,🚫Chop More Wood,19,MAGENTA
+🌾,🚫Harvest More Cotton,20,EXTRA
+⛏️,🚫Mine More Iron,21,EXTRA
 🦵,Get Your Sea Legs,24,EXTRA
 🔍,Finding the Lost,54,CYAN
 💰,Roll the Bones,22,YELLOW

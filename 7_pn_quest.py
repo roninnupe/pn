@@ -104,7 +104,9 @@ def get_pirate_id(address):
     return id_value
 
 
-def handle_row(row, chosen_quests, is_multi_threaded=True):
+def handle_row(row, chosen_quests, thread_counter, max_threads, is_multi_threaded=True):
+
+    start_time = time.time()
 
     wallet_id = row['identifier']
     address = row['address']
@@ -122,10 +124,19 @@ def handle_row(row, chosen_quests, is_multi_threaded=True):
     # Shuffle the copy of the list
     random.shuffle(shuffled_quests)
 
+    prior_chosen_quest = None
+    consecutive_quest_count = 0
+    max_consecutive_quests = random.randint(1, 3)  # Randomly choose a new threshold
+
     for chosen_quest in shuffled_quests:
         quest_energy_cost = chosen_quest['energy']
-        if initial_energy_balance < quest_energy_cost:
-            buffer.append(f"Energy insufficient for quest {chosen_quest['name']}. Moving to next quest or wallet.")
+        if initial_energy_balance is not None and quest_energy_cost is not None:
+            if initial_energy_balance < quest_energy_cost:
+                buffer.append(f"Energy insufficient for quest {chosen_quest['name']}. Moving to next quest or wallet.")
+                continue
+        else:
+            print(f"Error: Data Issue\n initial_energy_balance = {initial_energy_balance}\n quest_energy_cost = {quest_energy_cost}")
+            # Handle the case where one of the variables is None, maybe set a default or skip the operation
             continue
 
         color_name = quest_colors[chosen_quest['name']]
@@ -139,11 +150,28 @@ def handle_row(row, chosen_quests, is_multi_threaded=True):
         pirate_id = pirate_ids[0]
 
         txn_hash_hex, status = PNQ.start_quest(address, key, pirate_id, chosen_quest)
-        if status == "Successful": 
+        if status == "Successful":
             buffer.append(f"        {pn.formatted_time_str()} Transaction {status}: {pn.COLOR['GREEN']}{txn_hash_hex}{pn.COLOR['END']}")
 
-            # Random delay between 7 to 12 seconds
-            pn.handle_delay(random.randint(7, 12), time_period="second")           
+            # Check if the current quest is the same as the prior one
+            if chosen_quest['name'] == prior_chosen_quest:
+                if consecutive_quest_count < max_consecutive_quests:
+                    # Shorter delay for same, consecutive quest
+                    pn.handle_delay(random.randint(1, 2), time_period="second", desc_msg=f"[{thread_counter}] doing {prior_chosen_quest} again in")
+                    consecutive_quest_count += 1  # Increment the consecutive count
+                else:
+                    # If the maximum consecutive count is reached, reset and apply longer delay
+                    max_consecutive_quests = random.randint(2, 4)  # Choose a new threshold for next time
+                    pn.handle_delay(random.randint(5, 45), time_period="second", desc_msg=f"[{thread_counter}] finished {chosen_quest['name']} exploring for")
+                    consecutive_quest_count = 1  # Reset the counter
+            else:
+                # If a different quest is chosen, reset the counter and choose a new threshold
+                consecutive_quest_count = 1
+                max_consecutive_quests = random.randint(2, 4)
+                pn.handle_delay(random.randint(5, 45), time_period="second", desc_msg=f"[{thread_counter}] finished {chosen_quest['name']} exploring for")
+
+            prior_chosen_quest = chosen_quest['name']  # Update the prior chosen quest
+      
         else:
             buffer.append(f"        {pn.formatted_time_str()} Transaction {status}: {pn.COLOR['RED']}{txn_hash_hex}{pn.COLOR['END']}")
             break # adding failsafe to break if a transaction fails
@@ -152,6 +180,17 @@ def handle_row(row, chosen_quests, is_multi_threaded=True):
         buffer.append(f"        Remaining energy: {pn.COLOR['CYAN']}{initial_energy_balance}{pn.COLOR['END']}")
 
     buffer.append(f"\nTotal Remaining energy for wallet {wallet_id}: {pn.COLOR['CYAN']}{initial_energy_balance}{pn.COLOR['END']}")
+
+    # End the timer
+    end_time = time.time()
+    execution_time = end_time - start_time
+    # Calculate minutes and seconds
+    minutes = int(execution_time // 60)
+    seconds = int(execution_time % 60)   
+
+    # Add the execution time to the buffer
+    buffer.append(f"        Quest execution time: {minutes} minutes and {seconds} seconds.")
+
     buffer.append(f"{pn.COLOR['BLUE']}-------------------------------------------------------{pn.COLOR['END']}")
     print("\n".join(buffer))
 
@@ -260,20 +299,30 @@ def retry(max_retries=3, delay_seconds=300):
 
     return decorator_retry
 
-@retry(max_retries=100000, delay_seconds=300)
+
 def body_logic(args, chosen_quests, df_addresses):
+    thread_counter = 0  # Initialize the thread counter
+
     while True:
         start_time = time.time()
 
         if args.max_threads > 1:
-            with ThreadPoolExecutor(max_workers=args.max_threads) as executor:
-                # Create a list of tuples, each containing the row and chosen_quests
-                args_list = [(row, chosen_quests) for _, row in df_addresses.iterrows()]
-                results = list(executor.map(lambda args: handle_row(*args), args_list))
 
+            # Instantiate the singletons before multithreading
+            pn.Web3Singleton.get_EnergySystem()
+            pn.Web3Singleton.get_QuestSystem()
+
+            with ThreadPoolExecutor(max_workers=args.max_threads) as executor:
+                # Create a list of arguments for handle_row, each containing the row and other required parameters
+                args_list = [(row.to_dict(), chosen_quests, thread_counter + i, args.max_threads, True) 
+                             for i, (_, row) in enumerate(df_addresses.iterrows())]
+                # Map handle_row over args_list using the executor
+                results = list(executor.map(lambda x: handle_row(*x), args_list))
+                thread_counter += len(args_list)  # Update the thread counter after the batch is submitted
         else:
             for index, row in df_addresses.iterrows():
-                handle_row(row, chosen_quests, is_multi_threaded=False)
+                handle_row(row.to_dict(), chosen_quests, thread_counter, args.max_threads, is_multi_threaded=False)
+                thread_counter += 1  # Update the thread counter for each single thread
 
         end_time = time.time()
         execution_time = end_time - start_time
@@ -285,6 +334,7 @@ def body_logic(args, chosen_quests, df_addresses):
         else:
             # continue looping with necessary delay
             pn.handle_delay(args.delay_loop)
+
 
 
 main_script()

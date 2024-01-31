@@ -236,19 +236,44 @@ def eth_to_usd(eth_amount, round_result=True):
         usd_amount = round(usd_amount, 2)
     return usd_amount
 
+_contract_WETH_addr = "0x722E8BdD2ce80A4422E880164f2079488e115365"
 
-# returns the Nova eth balance from an address
+# Standard ERC-20 ABI snippet for balanceOf function
+ERC20_ABI_SNIPPET = [
+    {
+        "constant": True,
+        "inputs": [{"name": "_owner", "type": "address"}],
+        "name": "balanceOf",
+        "outputs": [{"name": "balance", "type": "uint256"}],
+        "type": "function"
+    }
+]
+
+def to_web3_address(address):
+    return Web3.toChecksumAddress(address)
+
+def get_token_balance(contract_address, contract_abi, user_address, web3_instance):
+    contract = web3_instance.eth.contract(address=to_web3_address(contract_address), abi=contract_abi)
+    balance_wei = contract.functions.balanceOf(to_web3_address(user_address)).call()
+    balance_eth = web3_instance.from_wei(balance_wei, 'ether')
+    return float(balance_eth)
+
 def get_nova_eth_balance(address):
     try:
         eth_balance_wei = Web3Singleton.get_web3_Nova().eth.get_balance(to_web3_address(address))
-        if eth_balance_wei == 0 :
+        if eth_balance_wei == 0:
             eth_balance_wei = Web3Singleton.get_web3_NovaAlt().eth.get_balance(to_web3_address(address))
         eth_balance_eth = float(Web3Singleton.get_web3_Nova().from_wei(eth_balance_wei, 'ether'))
-        return eth_balance_eth
+
+        # Use the standard ERC-20 ABI snippet for the balanceOf function
+        web3_nova = Web3Singleton.get_web3_Nova()
+        weth_balance_eth = get_token_balance(_contract_WETH_addr, ERC20_ABI_SNIPPET, address, web3_nova)
+
+        return eth_balance_eth, weth_balance_eth
     except Exception as e:
         error_type = type(e).__name__
-        print(f"{C_RED}**get_nova_eth_balance -> Exception: {e} - {error_type}{C_END}")
-        return None    
+        print(f"**get_nova_eth_balance -> Exception: {e} - {error_type}")
+        return None, None
 
 
 def get_energy(address, long_form=False):
@@ -827,7 +852,7 @@ def formatted_time_str(format="%m-%d %H:%M:%S"):
     return datetime.datetime.now().strftime(format) 
 
 
-def handle_delay(delay, time_period="minute"):
+def handle_delay(delay, time_period="minute", desc_msg=None):
     
     if delay is not None and delay > 0:
 
@@ -835,7 +860,7 @@ def handle_delay(delay, time_period="minute"):
             delay_seconds = delay * 3600
         elif time_period == "second":
             delay_seconds = delay
-        else:
+        else:  # Default to minutes if not specified
             delay_seconds = delay * 60
 
         # Convert delay_seconds into hours, minutes, and seconds
@@ -844,7 +869,13 @@ def handle_delay(delay, time_period="minute"):
         seconds = delay_seconds % 60
 
         # Build the delay message
-        delay_message = f"{formatted_time_str()} - Delaying for"
+        delay_message = f"{formatted_time_str()} - "
+        
+        # Optionally prepend the desc_msg if provided
+        if desc_msg:
+            delay_message += f"{desc_msg}"
+        else:
+            delay_message += "Delaying for"
 
         # Add hours if it's greater than zero
         if hours > 0:
@@ -861,7 +892,7 @@ def handle_delay(delay, time_period="minute"):
         # Print the delay message
         print(delay_message)
 
-        visual_delay_for(delay_seconds)
+        visual_delay_for(delay_seconds)  # Assuming this is a function you have for showing delay visually
 
         print(f"\nDelay complete. {C_CYAN}Resuming execution at {formatted_time_str()}{C_END}")
 
