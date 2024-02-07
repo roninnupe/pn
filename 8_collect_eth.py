@@ -34,7 +34,7 @@ for index, row in sender_data.iterrows():
     sender_name = row['identifier']
     sender_address = row['address']
     sender_pk = row['key']
-    amount_in_eth = pn.get_nova_eth_balance(sender_address)
+    amount_in_eth, weth = pn.get_nova_eth_balance(sender_address)
     total_sent_eth += amount_in_eth
 
     # Estimate gas cost; you'll have to adjust this if your send_nova_eth function returns the actual gas cost
