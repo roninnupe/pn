@@ -27,7 +27,7 @@ recipient_addresses = recipient_data['address'].tolist()
 recipient_count = len(recipient_addresses)
 
 # Get sender eth_balance and USD estimate of the wallet sending
-sender_eth_balance = pn.get_nova_eth_balance(sender_addr)
+sender_eth_balance, weth = pn.get_nova_eth_balance(sender_addr)
 sender_nova_usd_estimate = pn.eth_to_usd(sender_eth_balance)
 
 # Amount to send (in Ether)
