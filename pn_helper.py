@@ -601,18 +601,28 @@ def get_pirate_ids(address):
     return pirate_ids
 
 
-def extract_captain_token_id(data):
+def extract_captain_token_ids(data):
+    captain_tuples = {}  # Initialize an empty dictionary to store captain tuples
+
     # Check if the necessary keys exist
     if 'data' in data and 'accounts' in data['data']:
         for account in data['data']['accounts']:
+            # Use the account's address as the account_id, ensuring lowercase
+            account_id = account.get('address', '').lower()
+
             if 'worldEntity' in account and 'components' in account['worldEntity']:
                 for component in account['worldEntity']['components']:
                     if 'fields' in component:
                         for field in component['fields']:
                             if field['name'] == 'nft_entity':
+                                # Convert the value to a captain_tuple; ensure your entity_to_token function can handle the conversion
                                 captain_tuple = entity_to_token(int(field['value']))
-                                return f'{captain_tuple[0]}-{captain_tuple[1]}'
-    return None
+
+                                if account_id:  # Check if account_id is not None
+                                    captain_tuples[account_id] = f'{captain_tuple[0]}-{captain_tuple[1]}'
+                                    break  # Assuming only one captain per account, break after finding the first
+
+    return captain_tuples
 
 
 def move_captain_to_front(pirate_ids, captain_token_id):
@@ -662,13 +672,7 @@ def get_pirate_ids_dictionary(addresses):
                     name
                     nftType
                     id
-                    tokenId
-                    traits {{ 
-                        value
-                        metadata {{
-                            name
-                        }}
-                    }}            
+                    tokenId         
                 }}
                 worldEntity{{
                     ...WorldEntityCore
@@ -678,19 +682,21 @@ def get_pirate_ids_dictionary(addresses):
         """
 
     json_data = get_data(query)
-    captain_token_id = extract_captain_token_id(json_data)
+
+    captain_token_ids = extract_captain_token_ids(json_data)
 
     # Create a dictionary to store pirate IDs for each address
     pirate_ids_dict = {}
 
     for account in json_data['data']['accounts']:
-        address = account['address']
+        address = account['address'].lower()
         pirate_ids = [
             nft['id']
             for nft in account.get('nfts', [])
         ]
 
-        pirate_ids = move_captain_to_front(pirate_ids, captain_token_id)        
+        captain_token_id = captain_token_ids[address]
+        pirate_ids = move_captain_to_front(pirate_ids, captain_token_id)  
 
         # Store the pirate IDs in the dictionary with the address as the key
         pirate_ids_dict[address] = pirate_ids
