@@ -285,10 +285,6 @@ def main_script():
             else:
                 print("Invalid input. Please enter a valid wallet range.")
 
-    # put in an initial starting delay
-    if args.delay_start:
-        pn.handle_delay(args.delay_start)
-
     df_addresses = pn.get_full_wallet_data(walletlist)
 
     addresses_list = df_addresses['address'].tolist()
@@ -304,6 +300,10 @@ def main_script():
         hide_energy_threshold = int(hide_energy_threshold_str)
     except ValueError:
         hide_energy_threshold = 0
+
+    # put in an initial starting delay
+    if args.delay_start:
+        pn.handle_delay(args.delay_start)
 
     try:
         body_logic(args, chosen_quests, df_addresses, shuffle_for_each_wallet, hide_energy_threshold)  # Add shuffle_for_each_wallet as an argument
