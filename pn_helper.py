@@ -625,7 +625,7 @@ def extract_captain_token_ids(data):
     return captain_tuples
 
 
-def move_captain_to_front(pirate_ids, captain_token_id):
+def move_captain_id_to_front(pirate_ids, captain_token_id):
     # Check if captain_token_id is None
     if captain_token_id is None:
         return pirate_ids
@@ -643,6 +643,74 @@ def move_captain_to_front(pirate_ids, captain_token_id):
             break  # Break the loop as we found and moved the captain
 
     return pirate_ids
+
+
+def move_captain_nft_to_front(pirate_nfts, captain_token_id):
+    # Find the index of the NFT with the matching captain_token_id
+    captain_index = next((index for index, nft in enumerate(pirate_nfts) if nft['id'] == captain_token_id), None)
+
+    # If a matching NFT is found, move it to the front of the list
+    if captain_index is not None:
+        captain_nft = pirate_nfts.pop(captain_index)  # Remove the captain NFT from its current position
+        pirate_nfts.insert(0, captain_nft)  # Insert the captain NFT at the beginning of the list
+
+    return pirate_nfts
+
+
+def get_pirate_nfts_dictionary(addresses):
+    formatted_output = format_addresses_for_query(addresses)
+    query = f"""
+        {{
+            accounts(where: {{address_in: {formatted_output}}}) {{
+                address
+                nfts(where: {{or: [{{nftType: "pirate"}}, {{nftType: "starterpirate"}}]}}) {{
+                    name
+                    nftType
+                    id
+                    tokenId
+                    traits {{
+                        value
+                        metadata {{
+                            name
+                        }}
+                    }}         
+                }}
+            }}
+        }}
+    """
+
+    json_data = get_data(query)
+    captain_token_ids = extract_captain_token_ids(json_data)
+
+    pirate_nfts_dict = {}
+
+    for account in json_data['data']['accounts']:
+        address = account['address'].lower()
+        pirate_nfts = []
+
+        for nft in account.get('nfts', []):
+            # Extracting level from traits
+            level_trait = next((trait['value'] for trait in nft.get('traits', []) if trait['metadata']['name'].lower() == 'level'), None)
+            level = int(level_trait) if level_trait is not None else None
+
+            pirate_nft = {
+                'name': nft['name'],
+                'nftType': nft['nftType'],
+                'id': nft['id'],
+                'tokenId': nft['tokenId'],
+                'level': level
+            }
+
+            pirate_nfts.append(pirate_nft)
+
+        # If a captain is present, adjust the list order
+        captain_token_id = captain_token_ids.get(address)
+        if captain_token_id:
+            pirate_nfts = move_captain_nft_to_front(pirate_nfts, captain_token_id)
+
+        pirate_nfts_dict[address] = pirate_nfts
+
+    return pirate_nfts_dict
 
 
 def get_pirate_ids_dictionary(addresses):
@@ -690,13 +758,14 @@ def get_pirate_ids_dictionary(addresses):
 
     for account in json_data['data']['accounts']:
         address = account['address'].lower()
+
         pirate_ids = [
             nft['id']
             for nft in account.get('nfts', [])
         ]
 
         captain_token_id = captain_token_ids[address]
-        pirate_ids = move_captain_to_front(pirate_ids, captain_token_id)  
+        pirate_ids = move_captain_id_to_front(pirate_ids, captain_token_id)  
 
         # Store the pirate IDs in the dictionary with the address as the key
         pirate_ids_dict[address] = pirate_ids

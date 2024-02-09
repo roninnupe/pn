@@ -1,6 +1,9 @@
+from flask import Flask, render_template, redirect
 import requests
 import pytz
 import datetime
+
+app = Flask(__name__)
 
 # API endpoint and query setup
 URL_PIRATE_NATION_GRAPH_API = "https://subgraph.satsuma-prod.com/208eb2825ebd/proofofplay/pn-nova/api"
@@ -125,6 +128,25 @@ results = check_free_status(filtered_data)
 for result in results:
     print(result)
 
+@app.route('/')
+def index():
+    data = get_data(query)  # Use your existing get_data function
+    filtered_data = filter_by_owner(data, owner_list)  # Use your existing filter_by_owner function
+    results = check_free_status(filtered_data)  # Use your updated check_free_status function
+
+    if results:
+        # Check if the first result is free and redirect
+        first_result = results[0]
+        if first_result['status'] == 'Free':
+            return redirect(first_result['owner_url'])
+        else:
+            # If no shipwrights are free, render an HTML template with the results
+            return render_template('shipwrights.html', results=results)
+    else:
+        return "Error fetching data"
+
+if __name__ == '__main__':
+    app.run(debug=True)
 
 
 

@@ -1,18 +1,17 @@
-symbol,quest_name,quest_id,color
-📦,25x Gold,1,YELLOW
-🪓,1x Wood,3,MAGENTA
-🌾,1x Cotton,4,CYAN
-⛏️,1x Iron,5,GREEN
-📦,🚫Load Cargo,2,YELLOW
-🪓,🚫Chop More Wood,19,MAGENTA
-🌾,🚫Harvest More Cotton,20,EXTRA
-⛏️,🚫Mine More Iron,21,EXTRA
-🦵,Get Your Sea Legs,24,EXTRA
-🔍,Finding the Lost,54,CYAN
-💰,Roll the Bones,22,YELLOW
-💰,Motherload,23,YELLOW
-💰,Twist of Fate,48,YELLOW
-⛵,It's a Slippery Sloop,32,MAGENTA
-⛵,Get that Galleon,33,MAGENTA
-🛳️, What the Frigate?,44,MAGENTA
-🟡,Coin of the Realm,46,YELLOW
+symbol,quest_name,quest_id,color,level_required
+💰,Gold Chest - level 30,100,YELLOW,30
+💰,Gold Chest - level 20,99,YELLOW,20
+💰,Gold Chest - level 10,98,YELLOW,10
+💰,Gold Chest - level 1,97,YELLOW,1
+🪓,1x Wood,3,MAGENTA,1
+🌾,1x Cotton,4,CYAN,1
+⛏️,1x Iron,5,GREEN,1
+🦵,🔰 Get Your Sea Legs,24,EXTRA,1
+🔍,🔰 Finding the Lost,54,CYAN,1
+💰,🔰 Roll the Bones,22,YELLOW,1
+💰,🔰 Motherload,23,YELLOW,1
+💰,🔰 Twist of Fate,48,YELLOW,1
+⛵,🔰 It's a Slippery Sloop,32,MAGENTA,1
+⛵,🔰 Get that Galleon,33,MAGENTA,1
+🛳️,🔰 What the Frigate?,44,MAGENTA,1
+🟡,🔰 Coin of the Realm,46,YELLOW,1
