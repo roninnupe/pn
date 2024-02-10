@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shipwrights Status</title>
+</head>
+<body>
+    <h1>Sorry, none of Ronin's Shipwrights are Free</h1>
+    {% for result in results %}
+        <p><a href="{{ result.owner_url }}">{{ result.entity_id }}</a>: {{ result.status }}</p>
+    {% endfor %}
+</body>
+</html>

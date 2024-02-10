@@ -8,6 +8,7 @@ import datetime
 import questionary
 import json
 import requests
+import math
 import pandas as pd
 from web3 import Web3
 import personal_settings # you are required to make a personal settings and define certain variables to help scripts
@@ -235,19 +236,44 @@ def eth_to_usd(eth_amount, round_result=True):
         usd_amount = round(usd_amount, 2)
     return usd_amount
 
+_contract_WETH_addr = "0x722E8BdD2ce80A4422E880164f2079488e115365"
 
-# returns the Nova eth balance from an address
+# Standard ERC-20 ABI snippet for balanceOf function
+ERC20_ABI_SNIPPET = [
+    {
+        "constant": True,
+        "inputs": [{"name": "_owner", "type": "address"}],
+        "name": "balanceOf",
+        "outputs": [{"name": "balance", "type": "uint256"}],
+        "type": "function"
+    }
+]
+
+def to_web3_address(address):
+    return Web3.toChecksumAddress(address)
+
+def get_token_balance(contract_address, contract_abi, user_address, web3_instance):
+    contract = web3_instance.eth.contract(address=to_web3_address(contract_address), abi=contract_abi)
+    balance_wei = contract.functions.balanceOf(to_web3_address(user_address)).call()
+    balance_eth = web3_instance.from_wei(balance_wei, 'ether')
+    return float(balance_eth)
+
 def get_nova_eth_balance(address):
     try:
         eth_balance_wei = Web3Singleton.get_web3_Nova().eth.get_balance(to_web3_address(address))
-        if eth_balance_wei == 0 :
+        if eth_balance_wei == 0:
             eth_balance_wei = Web3Singleton.get_web3_NovaAlt().eth.get_balance(to_web3_address(address))
         eth_balance_eth = float(Web3Singleton.get_web3_Nova().from_wei(eth_balance_wei, 'ether'))
-        return eth_balance_eth
+
+        # Use the standard ERC-20 ABI snippet for the balanceOf function
+        web3_nova = Web3Singleton.get_web3_Nova()
+        weth_balance_eth = get_token_balance(_contract_WETH_addr, ERC20_ABI_SNIPPET, address, web3_nova)
+
+        return eth_balance_eth, weth_balance_eth
     except Exception as e:
         error_type = type(e).__name__
-        print(f"{C_RED}**get_nova_eth_balance -> Exception: {e} - {error_type}{C_END}")
-        return None    
+        print(f"**get_nova_eth_balance -> Exception: {e} - {error_type}")
+        return None, None
 
 
 def get_energy(address, long_form=False):
@@ -258,7 +284,7 @@ def get_energy(address, long_form=False):
         if long_form:
             return result
         else:
-            return round((result /  10 ** 18), 0) 
+            return math.floor(result /  10 ** 18)
     except Exception as e:
         error_type = type(e).__name__
         print(f"{C_RED}**get_energy -> Exception: {e} - {error_type}{C_END}")
@@ -575,21 +601,31 @@ def get_pirate_ids(address):
     return pirate_ids
 
 
-def extract_captain_token_id(data):
+def extract_captain_token_ids(data):
+    captain_tuples = {}  # Initialize an empty dictionary to store captain tuples
+
     # Check if the necessary keys exist
     if 'data' in data and 'accounts' in data['data']:
         for account in data['data']['accounts']:
+            # Use the account's address as the account_id, ensuring lowercase
+            account_id = account.get('address', '').lower()
+
             if 'worldEntity' in account and 'components' in account['worldEntity']:
                 for component in account['worldEntity']['components']:
                     if 'fields' in component:
                         for field in component['fields']:
                             if field['name'] == 'nft_entity':
+                                # Convert the value to a captain_tuple; ensure your entity_to_token function can handle the conversion
                                 captain_tuple = entity_to_token(int(field['value']))
-                                return f'{captain_tuple[0]}-{captain_tuple[1]}'
-    return None
+
+                                if account_id:  # Check if account_id is not None
+                                    captain_tuples[account_id] = f'{captain_tuple[0]}-{captain_tuple[1]}'
+                                    break  # Assuming only one captain per account, break after finding the first
+
+    return captain_tuples
 
 
-def move_captain_to_front(pirate_ids, captain_token_id):
+def move_captain_id_to_front(pirate_ids, captain_token_id):
     # Check if captain_token_id is None
     if captain_token_id is None:
         return pirate_ids
@@ -607,6 +643,74 @@ def move_captain_to_front(pirate_ids, captain_token_id):
             break  # Break the loop as we found and moved the captain
 
     return pirate_ids
+
+
+def move_captain_nft_to_front(pirate_nfts, captain_token_id):
+    # Find the index of the NFT with the matching captain_token_id
+    captain_index = next((index for index, nft in enumerate(pirate_nfts) if nft['id'] == captain_token_id), None)
+
+    # If a matching NFT is found, move it to the front of the list
+    if captain_index is not None:
+        captain_nft = pirate_nfts.pop(captain_index)  # Remove the captain NFT from its current position
+        pirate_nfts.insert(0, captain_nft)  # Insert the captain NFT at the beginning of the list
+
+    return pirate_nfts
+
+
+def get_pirate_nfts_dictionary(addresses):
+    formatted_output = format_addresses_for_query(addresses)
+    query = f"""
+        {{
+            accounts(where: {{address_in: {formatted_output}}}) {{
+                address
+                nfts(where: {{or: [{{nftType: "pirate"}}, {{nftType: "starterpirate"}}]}}) {{
+                    name
+                    nftType
+                    id
+                    tokenId
+                    traits {{
+                        value
+                        metadata {{
+                            name
+                        }}
+                    }}         
+                }}
+            }}
+        }}
+    """
+
+    json_data = get_data(query)
+    captain_token_ids = extract_captain_token_ids(json_data)
+
+    pirate_nfts_dict = {}
+
+    for account in json_data['data']['accounts']:
+        address = account['address'].lower()
+        pirate_nfts = []
+
+        for nft in account.get('nfts', []):
+            # Extracting level from traits
+            level_trait = next((trait['value'] for trait in nft.get('traits', []) if trait['metadata']['name'].lower() == 'level'), None)
+            level = int(level_trait) if level_trait is not None else None
+
+            pirate_nft = {
+                'name': nft['name'],
+                'nftType': nft['nftType'],
+                'id': nft['id'],
+                'tokenId': nft['tokenId'],
+                'level': level
+            }
+
+            pirate_nfts.append(pirate_nft)
+
+        # If a captain is present, adjust the list order
+        captain_token_id = captain_token_ids.get(address)
+        if captain_token_id:
+            pirate_nfts = move_captain_nft_to_front(pirate_nfts, captain_token_id)
+
+        pirate_nfts_dict[address] = pirate_nfts
+
+    return pirate_nfts_dict
 
 
 def get_pirate_ids_dictionary(addresses):
@@ -636,13 +740,7 @@ def get_pirate_ids_dictionary(addresses):
                     name
                     nftType
                     id
-                    tokenId
-                    traits {{ 
-                        value
-                        metadata {{
-                            name
-                        }}
-                    }}            
+                    tokenId         
                 }}
                 worldEntity{{
                     ...WorldEntityCore
@@ -652,19 +750,22 @@ def get_pirate_ids_dictionary(addresses):
         """
 
     json_data = get_data(query)
-    captain_token_id = extract_captain_token_id(json_data)
+
+    captain_token_ids = extract_captain_token_ids(json_data)
 
     # Create a dictionary to store pirate IDs for each address
     pirate_ids_dict = {}
 
     for account in json_data['data']['accounts']:
-        address = account['address']
+        address = account['address'].lower()
+
         pirate_ids = [
             nft['id']
             for nft in account.get('nfts', [])
         ]
 
-        pirate_ids = move_captain_to_front(pirate_ids, captain_token_id)        
+        captain_token_id = captain_token_ids[address]
+        pirate_ids = move_captain_id_to_front(pirate_ids, captain_token_id)  
 
         # Store the pirate IDs in the dictionary with the address as the key
         pirate_ids_dict[address] = pirate_ids
@@ -826,7 +927,7 @@ def formatted_time_str(format="%m-%d %H:%M:%S"):
     return datetime.datetime.now().strftime(format) 
 
 
-def handle_delay(delay, time_period="minute"):
+def handle_delay(delay, time_period="minute", desc_msg=None):
     
     if delay is not None and delay > 0:
 
@@ -834,7 +935,7 @@ def handle_delay(delay, time_period="minute"):
             delay_seconds = delay * 3600
         elif time_period == "second":
             delay_seconds = delay
-        else:
+        else:  # Default to minutes if not specified
             delay_seconds = delay * 60
 
         # Convert delay_seconds into hours, minutes, and seconds
@@ -843,7 +944,13 @@ def handle_delay(delay, time_period="minute"):
         seconds = delay_seconds % 60
 
         # Build the delay message
-        delay_message = f"{formatted_time_str()} - Delaying for"
+        delay_message = f"{formatted_time_str()} - "
+        
+        # Optionally prepend the desc_msg if provided
+        if desc_msg:
+            delay_message += f"{desc_msg}"
+        else:
+            delay_message += "Delaying for"
 
         # Add hours if it's greater than zero
         if hours > 0:
@@ -860,7 +967,7 @@ def handle_delay(delay, time_period="minute"):
         # Print the delay message
         print(delay_message)
 
-        visual_delay_for(delay_seconds)
+        visual_delay_for(delay_seconds)  # Assuming this is a function you have for showing delay visually
 
         print(f"\nDelay complete. {C_CYAN}Resuming execution at {formatted_time_str()}{C_END}")
 
