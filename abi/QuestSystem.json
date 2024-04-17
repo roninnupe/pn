@@ -1,0 +1,942 @@
+[
+    {
+        "inputs": [],
+        "name": "BountyStillRunning",
+        "type": "error"
+    },
+    {
+        "inputs": [],
+        "name": "ExpectedIntForTraitCheck",
+        "type": "error"
+    },
+    {
+        "inputs": [],
+        "name": "InvalidGameRegistry",
+        "type": "error"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "enum TraitCheckType",
+                "name": "checkType",
+                "type": "uint8"
+            }
+        ],
+        "name": "InvalidTraitCheckType",
+        "type": "error"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "account",
+                "type": "address"
+            },
+            {
+                "internalType": "bytes32",
+                "name": "expectedRole",
+                "type": "bytes32"
+            }
+        ],
+        "name": "MissingRole",
+        "type": "error"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "enum TraitCheckType",
+                "name": "checkType",
+                "type": "uint8"
+            }
+        ],
+        "name": "TraitCheckFailed",
+        "type": "error"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
+                "internalType": "uint8",
+                "name": "version",
+                "type": "uint8"
+            }
+        ],
+        "name": "Initialized",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
+                "internalType": "address",
+                "name": "account",
+                "type": "address"
+            }
+        ],
+        "name": "Paused",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
+                "internalType": "address",
+                "name": "account",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint32",
+                "name": "questId",
+                "type": "uint32"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "activeQuestId",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "bool",
+                "name": "success",
+                "type": "bool"
+            }
+        ],
+        "name": "QuestCompleted",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
+                "internalType": "address",
+                "name": "account",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint32",
+                "name": "questId",
+                "type": "uint32"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "activeQuestId",
+                "type": "uint256"
+            }
+        ],
+        "name": "QuestStarted",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
+                "internalType": "uint32",
+                "name": "questId",
+                "type": "uint32"
+            }
+        ],
+        "name": "QuestUpdated",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
+                "internalType": "address",
+                "name": "account",
+                "type": "address"
+            }
+        ],
+        "name": "Unpaused",
+        "type": "event"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            }
+        ],
+        "name": "_activeQuests",
+        "outputs": [
+            {
+                "internalType": "enum QuestSystem.ActiveQuestStatus",
+                "name": "status",
+                "type": "uint8"
+            },
+            {
+                "internalType": "address",
+                "name": "account",
+                "type": "address"
+            },
+            {
+                "internalType": "uint32",
+                "name": "questId",
+                "type": "uint32"
+            },
+            {
+                "internalType": "uint32",
+                "name": "startTime",
+                "type": "uint32"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint32",
+                "name": "",
+                "type": "uint32"
+            }
+        ],
+        "name": "_questDefinitions",
+        "outputs": [
+            {
+                "internalType": "bool",
+                "name": "enabled",
+                "type": "bool"
+            },
+            {
+                "internalType": "uint32",
+                "name": "baseSuccessProbability",
+                "type": "uint32"
+            },
+            {
+                "internalType": "uint32",
+                "name": "cooldownSeconds",
+                "type": "uint32"
+            },
+            {
+                "internalType": "uint32",
+                "name": "maxCompletions",
+                "type": "uint32"
+            },
+            {
+                "internalType": "uint32",
+                "name": "successXp",
+                "type": "uint32"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "account",
+                "type": "address"
+            }
+        ],
+        "name": "activeQuestIdsForAccount",
+        "outputs": [
+            {
+                "internalType": "uint256[]",
+                "name": "",
+                "type": "uint256[]"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "requestId",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256[]",
+                "name": "randomWords",
+                "type": "uint256[]"
+            }
+        ],
+        "name": "fulfillRandomWordsCallback",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "activeQuestId",
+                "type": "uint256"
+            }
+        ],
+        "name": "getActiveQuest",
+        "outputs": [
+            {
+                "components": [
+                    {
+                        "internalType": "enum QuestSystem.ActiveQuestStatus",
+                        "name": "status",
+                        "type": "uint8"
+                    },
+                    {
+                        "internalType": "address",
+                        "name": "account",
+                        "type": "address"
+                    },
+                    {
+                        "internalType": "uint32",
+                        "name": "questId",
+                        "type": "uint32"
+                    },
+                    {
+                        "internalType": "uint32",
+                        "name": "startTime",
+                        "type": "uint32"
+                    },
+                    {
+                        "components": [
+                            {
+                                "internalType": "enum GameRegistryLibrary.TokenType",
+                                "name": "tokenType",
+                                "type": "uint8"
+                            },
+                            {
+                                "internalType": "address",
+                                "name": "tokenContract",
+                                "type": "address"
+                            },
+                            {
+                                "internalType": "uint256",
+                                "name": "tokenId",
+                                "type": "uint256"
+                            },
+                            {
+                                "internalType": "uint256",
+                                "name": "amount",
+                                "type": "uint256"
+                            },
+                            {
+                                "internalType": "uint32",
+                                "name": "reservationId",
+                                "type": "uint32"
+                            }
+                        ],
+                        "internalType": "struct GameRegistryLibrary.ReservedToken[]",
+                        "name": "inputs",
+                        "type": "tuple[]"
+                    }
+                ],
+                "internalType": "struct QuestSystem.ActiveQuest",
+                "name": "",
+                "type": "tuple"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "getGameRegistry",
+        "outputs": [
+            {
+                "internalType": "contract IGameRegistry",
+                "name": "",
+                "type": "address"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "getId",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "account",
+                "type": "address"
+            },
+            {
+                "internalType": "uint32",
+                "name": "questId",
+                "type": "uint32"
+            }
+        ],
+        "name": "getPendingQuests",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "account",
+                "type": "address"
+            },
+            {
+                "internalType": "uint32",
+                "name": "questId",
+                "type": "uint32"
+            }
+        ],
+        "name": "getQuestDataForAccount",
+        "outputs": [
+            {
+                "internalType": "uint32",
+                "name": "completions",
+                "type": "uint32"
+            },
+            {
+                "internalType": "uint32",
+                "name": "lastCompletionTime",
+                "type": "uint32"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint32",
+                "name": "questId",
+                "type": "uint32"
+            }
+        ],
+        "name": "getQuestDefinition",
+        "outputs": [
+            {
+                "components": [
+                    {
+                        "internalType": "bool",
+                        "name": "enabled",
+                        "type": "bool"
+                    },
+                    {
+                        "components": [
+                            {
+                                "internalType": "uint32",
+                                "name": "requirementId",
+                                "type": "uint32"
+                            },
+                            {
+                                "internalType": "bytes",
+                                "name": "requirementData",
+                                "type": "bytes"
+                            }
+                        ],
+                        "internalType": "struct IRequirementSystem.AccountRequirement[]",
+                        "name": "requirements",
+                        "type": "tuple[]"
+                    },
+                    {
+                        "components": [
+                            {
+                                "components": [
+                                    {
+                                        "internalType": "enum GameRegistryLibrary.TokenType",
+                                        "name": "tokenType",
+                                        "type": "uint8"
+                                    },
+                                    {
+                                        "internalType": "address",
+                                        "name": "tokenContract",
+                                        "type": "address"
+                                    },
+                                    {
+                                        "internalType": "uint256",
+                                        "name": "tokenId",
+                                        "type": "uint256"
+                                    },
+                                    {
+                                        "internalType": "uint256",
+                                        "name": "amount",
+                                        "type": "uint256"
+                                    }
+                                ],
+                                "internalType": "struct GameRegistryLibrary.TokenPointer",
+                                "name": "tokenPointer",
+                                "type": "tuple"
+                            },
+                            {
+                                "components": [
+                                    {
+                                        "internalType": "enum TraitCheckType",
+                                        "name": "checkType",
+                                        "type": "uint8"
+                                    },
+                                    {
+                                        "internalType": "uint256",
+                                        "name": "traitId",
+                                        "type": "uint256"
+                                    },
+                                    {
+                                        "internalType": "int256",
+                                        "name": "traitValue",
+                                        "type": "int256"
+                                    }
+                                ],
+                                "internalType": "struct TraitCheck[]",
+                                "name": "traitChecks",
+                                "type": "tuple[]"
+                            },
+                            {
+                                "internalType": "uint256",
+                                "name": "energyRequired",
+                                "type": "uint256"
+                            },
+                            {
+                                "internalType": "bool",
+                                "name": "required",
+                                "type": "bool"
+                            },
+                            {
+                                "internalType": "bool",
+                                "name": "consumable",
+                                "type": "bool"
+                            },
+                            {
+                                "internalType": "uint32",
+                                "name": "failureBurnProbability",
+                                "type": "uint32"
+                            },
+                            {
+                                "internalType": "uint32",
+                                "name": "successBurnProbability",
+                                "type": "uint32"
+                            },
+                            {
+                                "internalType": "uint32",
+                                "name": "xpEarnedPercent",
+                                "type": "uint32"
+                            }
+                        ],
+                        "internalType": "struct QuestSystem.QuestInput[]",
+                        "name": "inputs",
+                        "type": "tuple[]"
+                    },
+                    {
+                        "components": [
+                            {
+                                "internalType": "enum ILootSystem.LootType",
+                                "name": "lootType",
+                                "type": "uint8"
+                            },
+                            {
+                                "internalType": "address",
+                                "name": "tokenContract",
+                                "type": "address"
+                            },
+                            {
+                                "internalType": "uint256",
+                                "name": "lootId",
+                                "type": "uint256"
+                            },
+                            {
+                                "internalType": "uint256",
+                                "name": "amount",
+                                "type": "uint256"
+                            }
+                        ],
+                        "internalType": "struct ILootSystem.Loot[]",
+                        "name": "loots",
+                        "type": "tuple[]"
+                    },
+                    {
+                        "internalType": "uint32",
+                        "name": "baseSuccessProbability",
+                        "type": "uint32"
+                    },
+                    {
+                        "internalType": "uint32",
+                        "name": "cooldownSeconds",
+                        "type": "uint32"
+                    },
+                    {
+                        "internalType": "uint32",
+                        "name": "maxCompletions",
+                        "type": "uint32"
+                    },
+                    {
+                        "internalType": "uint32",
+                        "name": "successXp",
+                        "type": "uint32"
+                    }
+                ],
+                "internalType": "struct QuestSystem.QuestDefinition",
+                "name": "",
+                "type": "tuple"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "gameRegistryAddress",
+                "type": "address"
+            }
+        ],
+        "name": "initialize",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "account",
+                "type": "address"
+            },
+            {
+                "internalType": "uint32",
+                "name": "questId",
+                "type": "uint32"
+            }
+        ],
+        "name": "isQuestAvailable",
+        "outputs": [
+            {
+                "internalType": "bool",
+                "name": "",
+                "type": "bool"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "forwarder",
+                "type": "address"
+            }
+        ],
+        "name": "isTrustedForwarder",
+        "outputs": [
+            {
+                "internalType": "bool",
+                "name": "",
+                "type": "bool"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "paused",
+        "outputs": [
+            {
+                "internalType": "bool",
+                "name": "",
+                "type": "bool"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "gameRegistryAddress",
+                "type": "address"
+            }
+        ],
+        "name": "setGameRegistry",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "bool",
+                "name": "shouldPause",
+                "type": "bool"
+            }
+        ],
+        "name": "setPaused",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint32",
+                "name": "questId",
+                "type": "uint32"
+            },
+            {
+                "components": [
+                    {
+                        "internalType": "bool",
+                        "name": "enabled",
+                        "type": "bool"
+                    },
+                    {
+                        "components": [
+                            {
+                                "internalType": "uint32",
+                                "name": "requirementId",
+                                "type": "uint32"
+                            },
+                            {
+                                "internalType": "bytes",
+                                "name": "requirementData",
+                                "type": "bytes"
+                            }
+                        ],
+                        "internalType": "struct IRequirementSystem.AccountRequirement[]",
+                        "name": "requirements",
+                        "type": "tuple[]"
+                    },
+                    {
+                        "components": [
+                            {
+                                "components": [
+                                    {
+                                        "internalType": "enum GameRegistryLibrary.TokenType",
+                                        "name": "tokenType",
+                                        "type": "uint8"
+                                    },
+                                    {
+                                        "internalType": "address",
+                                        "name": "tokenContract",
+                                        "type": "address"
+                                    },
+                                    {
+                                        "internalType": "uint256",
+                                        "name": "tokenId",
+                                        "type": "uint256"
+                                    },
+                                    {
+                                        "internalType": "uint256",
+                                        "name": "amount",
+                                        "type": "uint256"
+                                    }
+                                ],
+                                "internalType": "struct GameRegistryLibrary.TokenPointer",
+                                "name": "tokenPointer",
+                                "type": "tuple"
+                            },
+                            {
+                                "components": [
+                                    {
+                                        "internalType": "enum TraitCheckType",
+                                        "name": "checkType",
+                                        "type": "uint8"
+                                    },
+                                    {
+                                        "internalType": "uint256",
+                                        "name": "traitId",
+                                        "type": "uint256"
+                                    },
+                                    {
+                                        "internalType": "int256",
+                                        "name": "traitValue",
+                                        "type": "int256"
+                                    }
+                                ],
+                                "internalType": "struct TraitCheck[]",
+                                "name": "traitChecks",
+                                "type": "tuple[]"
+                            },
+                            {
+                                "internalType": "uint256",
+                                "name": "energyRequired",
+                                "type": "uint256"
+                            },
+                            {
+                                "internalType": "bool",
+                                "name": "required",
+                                "type": "bool"
+                            },
+                            {
+                                "internalType": "bool",
+                                "name": "consumable",
+                                "type": "bool"
+                            },
+                            {
+                                "internalType": "uint32",
+                                "name": "failureBurnProbability",
+                                "type": "uint32"
+                            },
+                            {
+                                "internalType": "uint32",
+                                "name": "successBurnProbability",
+                                "type": "uint32"
+                            },
+                            {
+                                "internalType": "uint32",
+                                "name": "xpEarnedPercent",
+                                "type": "uint32"
+                            }
+                        ],
+                        "internalType": "struct QuestSystem.QuestInput[]",
+                        "name": "inputs",
+                        "type": "tuple[]"
+                    },
+                    {
+                        "components": [
+                            {
+                                "internalType": "enum ILootSystem.LootType",
+                                "name": "lootType",
+                                "type": "uint8"
+                            },
+                            {
+                                "internalType": "address",
+                                "name": "tokenContract",
+                                "type": "address"
+                            },
+                            {
+                                "internalType": "uint256",
+                                "name": "lootId",
+                                "type": "uint256"
+                            },
+                            {
+                                "internalType": "uint256",
+                                "name": "amount",
+                                "type": "uint256"
+                            }
+                        ],
+                        "internalType": "struct ILootSystem.Loot[]",
+                        "name": "loots",
+                        "type": "tuple[]"
+                    },
+                    {
+                        "internalType": "uint32",
+                        "name": "baseSuccessProbability",
+                        "type": "uint32"
+                    },
+                    {
+                        "internalType": "uint32",
+                        "name": "cooldownSeconds",
+                        "type": "uint32"
+                    },
+                    {
+                        "internalType": "uint32",
+                        "name": "maxCompletions",
+                        "type": "uint32"
+                    },
+                    {
+                        "internalType": "uint32",
+                        "name": "successXp",
+                        "type": "uint32"
+                    }
+                ],
+                "internalType": "struct QuestSystem.QuestDefinition",
+                "name": "definition",
+                "type": "tuple"
+            }
+        ],
+        "name": "setQuestDefinition",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint32",
+                "name": "questId",
+                "type": "uint32"
+            },
+            {
+                "internalType": "bool",
+                "name": "enabled",
+                "type": "bool"
+            }
+        ],
+        "name": "setQuestEnabled",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "components": [
+                    {
+                        "internalType": "uint32",
+                        "name": "questId",
+                        "type": "uint32"
+                    },
+                    {
+                        "components": [
+                            {
+                                "internalType": "enum GameRegistryLibrary.TokenType",
+                                "name": "tokenType",
+                                "type": "uint8"
+                            },
+                            {
+                                "internalType": "address",
+                                "name": "tokenContract",
+                                "type": "address"
+                            },
+                            {
+                                "internalType": "uint256",
+                                "name": "tokenId",
+                                "type": "uint256"
+                            },
+                            {
+                                "internalType": "uint256",
+                                "name": "amount",
+                                "type": "uint256"
+                            }
+                        ],
+                        "internalType": "struct GameRegistryLibrary.TokenPointer[]",
+                        "name": "inputs",
+                        "type": "tuple[]"
+                    }
+                ],
+                "internalType": "struct QuestSystem.QuestParams",
+                "name": "params",
+                "type": "tuple"
+            }
+        ],
+        "name": "startQuest",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    }
+]

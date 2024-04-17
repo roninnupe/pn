@@ -1,0 +1,12 @@
+personal_settings.py
+__pycache__/
+data/
+addresses/
+logs/
+myprojectenv/
+addresses/
+inventory/
+README.md
+current_time.py
+*.sh
+pn.code-workspace

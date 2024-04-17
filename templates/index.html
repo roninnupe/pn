@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Image Gallery</title>
+    <style>
+        .image-gallery {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-start;
+            margin: 0px;
+        }
+
+        .image-item {
+            flex: 0 0 calc(5% - 10px); /* Adjust the width for up to 20 images per row */
+            margin: 0px;
+            box-sizing: border-box;
+        }
+
+        .image-item img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        @media screen and (max-width: 1200px) {
+            .image-item {
+                flex-basis: calc(8% - 10px); /* Adjust for up to 12 images per row */
+            }
+        }
+
+        @media screen and (max-width: 768px) {
+            .image-item {
+                flex-basis: calc(12% - 10px); /* Adjust for up to 8 images per row */
+            }
+        }
+
+        @media screen and (max-width: 480px) {
+            .image-item {
+                flex-basis: calc(20% - 10px); /* Adjust for up to 5 images per row */
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Image Gallery</h1>
+    <div class="image-gallery">
+        {% for image in image_data %}
+        <div class="image-item">
+            <a href="https://opensea.io/assets/ethereum/0x1b41d54b3f8de13d58102c50d7431fd6aa1a2c48/{{ image['tokenId'] }}" target="_blank">
+                <img src="{{ image['imageUrl'] }}" alt="Image">
+            </a>
+        </div>
+        {% endfor %}
+    </div>
+</body>
+</html>
