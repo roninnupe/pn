@@ -28,7 +28,7 @@ def batch_transfer(web3, contract, recipient, operator, private_key, wallet_addr
             'data': contract.encodeABI(fn_name='safeBatchTransferFrom', args=[wallet_address, recipient, token_ids, amounts, b''])
             }
 
-        txn_receipt = pn.send_web3_transaction(web3, private_key, txn_dict, max_transaction_cost_usd=0.04, retries=0)
+        txn_receipt = pn.send_web3_transaction(web3, private_key, txn_dict, max_transaction_cost_usd=0.06, retries=0)
 
         if txn_receipt is not None:
             status_message = pn.get_status_message(txn_receipt)

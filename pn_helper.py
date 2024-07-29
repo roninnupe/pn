@@ -11,7 +11,6 @@ import inspect
 import json
 import requests
 import math
-import traceback
 from decimal import Decimal, getcontext
 import pandas as pd
 from typing import Union
@@ -203,11 +202,49 @@ def add_inventory_data_path(filename):
     return f"{directory_path}{filename}"
 
 
+from requests.exceptions import HTTPError, ConnectionError, Timeout, RequestException
+import logging
 
-# gets the JSON data from a query to the pirate nation graph
-def get_data(query):
-    response = requests.post(URL_PIRATE_NATION_GRAPH_API, json={'query': query})
-    return response.json()
+# Set up logging
+logging.basicConfig(level=logging.WARNING, format='%(asctime)s - %(levelname)s - %(message)s')
+
+def get_data(query, max_retries=3, backoff_factor=0.3):
+    url = URL_PIRATE_NATION_GRAPH_API
+    headers = {'Content-Type': 'application/json'}
+    retry_count = 0
+
+    while retry_count < max_retries:
+        try:
+            response = requests.post(url, json={'query': query}, headers=headers, timeout=10)
+
+            # Raise an HTTPError if the status code is 4xx or 5xx
+            response.raise_for_status()
+
+            # Validate and parse the JSON response
+            try:
+                data = response.json()
+                return data
+            except ValueError as e:
+                logging.error(f"JSON decode error: {e}")
+                raise
+
+        except (HTTPError, ConnectionError, Timeout) as e:
+            logging.error(f"Request error: {e}")
+            retry_count += 1
+            if retry_count < max_retries:
+                sleep_time = backoff_factor * (2 ** (retry_count - 1))
+                logging.debug(f"Retrying in {sleep_time} seconds...")
+                time.sleep(sleep_time)
+            else:
+                logging.error("Maximum retries reached. Exiting.")
+                raise
+        except RequestException as e:
+            logging.error(f"General request exception: {e}")
+            raise
+
+# Example usage
+# query = "Your GraphQL query here"
+# data = get_data(query)
 
 
 # read addresses from a file path passed in stripping funny characters, etc
@@ -261,7 +298,7 @@ def get_cached_eth_price():
             eth_price_cache['last_updated'] = current_time  # Update the last updated time
         except requests.exceptions.RequestException as e:
             print("Error making API request:", e)
-            return None
+            return 3500
 
     return eth_price_cache['price']
 
@@ -495,7 +532,7 @@ def get_token_id_mapping_and_soulbound_list(gameItems):
     item_to_tokenId = {}
 
     # temporarily hard coded all soulboundIds because graph isn't showing soulbound trait anymore
-    soulbound_tokenIds = [100,101,102,201,205,209,210,211,212,213,214,215,216,217,218,219,220,221,222,223,224,225,226,227,241,242,243,250,328,80]
+    soulbound_tokenIds = [2,4,5,100,101,102,201,205,209,210,211,212,213,214,215,216,217,218,219,220,221,222,223,224,225,226,227,241,242,243,250,328,80,335]
 
     for element in gameItems:  # Iterate over each element in gameItems
         worldEntity = element.get("worldEntity", {})  # Extract the worldEntity object
@@ -747,6 +784,8 @@ def send_l2_eth(sender, recipient, amount_in_eth, private_key, gas_limit=30000, 
         return None
 
     nonce = web3.eth.get_transaction_count(sender_addr, 'latest')
+
+    print("nonce: ", nonce)
 
     # Build the transaction
     txn_dict = {

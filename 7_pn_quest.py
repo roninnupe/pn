@@ -15,8 +15,8 @@ from concurrent.futures import ThreadPoolExecutor
 
 # Number of threads to use
 MAX_THREADS = 1
-EXPLORE_LOW = 2
-EXPLORE_HIGH = 5
+EXPLORE_LOW = 1
+EXPLORE_HIGH = 1
 _pirate_dict = {}
 
 custom_style = Style.from_dict({
@@ -359,8 +359,12 @@ def main_script():
         pn.handle_delay(args.delay_start)
 
     try:
-        body_logic(args, chosen_quests, df_addresses)  
+        body_logic(args, chosen_quests, df_addresses)
     except Exception as e:
+        error_type = type(e).__name__
+        print(f"Error Type: {error_type}")
+        print(f"Error Message: {str(e)}")
+        traceback.print_exc()  # Print the traceback
         print(f"Final exception: {e}")
 
 

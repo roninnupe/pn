@@ -14,11 +14,11 @@ def parse_arguments():
     # Optional argument: min_move (default: 1000)
     parser.add_argument('--min_move', type=int, default=1000, help='Minimum PGLD move amount. will not move if the value to move is less than this (default: 1000)')
 
-    # Optional argument: leave_behind_mib (default: 2500)
-    parser.add_argument('--leave_behind_min', type=int, default=2500, help='Minimum amount of gold to leave behind (optional, default: 2500)')
+    # Optional argument: leave_behind_min (default: 2500)
+    parser.add_argument('--leave_behind_min', type=int, default=1100, help='Minimum amount of gold to leave behind (optional, default: 2500)')
 
     # Optional argument: leave_behind_max (default: 3000)
-    parser.add_argument('--leave_behind_max', type=int, default=3000, help='Maximum amount of gold to leave behind (optional, default: 3000)')
+    parser.add_argument('--leave_behind_max', type=int, default=1100, help='Maximum amount of gold to leave behind (optional, default: 3000)')
 
     # Add the 'automate' argument
     parser.add_argument('--automate', action='store_true', help='Automate the process')

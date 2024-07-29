@@ -4,7 +4,7 @@ import pn_helper as pn
 import pandas as pd
 from termcolor import colored
 
-GAS_LIMIT = 90000
+GAS_LIMIT = 150000
 
 range_input = input("Input the wallet you'd like to send from from: ")
 walletlist = pn.parse_number_ranges(range_input)

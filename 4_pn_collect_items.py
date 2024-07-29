@@ -33,7 +33,7 @@ def batch_transfer(web3, contract, recipient, operator, private_key, wallet_addr
             'chainId': web3.eth.chain_id  # Ensure the correct chain ID
         }
 
-        txn_receipt = pn.send_web3_transaction(web3, private_key, txn_dict, retries=0, max_transaction_cost_usd=0.50)
+        txn_receipt = pn.send_web3_transaction(web3, private_key, txn_dict, retries=0, max_transaction_cost_usd=0.75)
 
         if txn_receipt is not None:
             status_message = pn.get_status_message(txn_receipt)
@@ -114,6 +114,8 @@ def main():
     #specify a list of token_ids to not try and send. currently it's just soulbound tokens
     # note:81 is cutlass - skipping this for now
     skip_token_ids = soulbound_tokenIds #[80,100,101,102,209,210,211,212,213,214,215,216,217,218,219,220,221,222]
+    skip_token_ids.append(354) #added the driftwood token to make sure not to move it
+    #skip_ids(skip_token_ids)
 
     # extract out a list of only the token Ids you want to send
     include_only_token_ids = None
@@ -230,6 +232,16 @@ def main():
             delay_seconds = random.uniform(0.25, 1.25)
             print(f"Waiting for {delay_seconds:.2f} seconds...")            
             time.sleep(delay_seconds)
+
+def skip_ids(skip_token_ids):
+    skip_token_ids.append(70) #add faded map
+    skip_token_ids.append(48)
+    skip_token_ids.append(49)
+    skip_token_ids.append(50)
+    skip_token_ids.append(51)
+    skip_token_ids.append(52)
+    skip_token_ids.append(53)
+    skip_token_ids.append(3)
 
 def print_token_amount_pairs(token_name, amounts):
     if len(token_name) != len(amounts):
